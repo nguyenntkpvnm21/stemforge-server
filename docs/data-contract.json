@@ -1,0 +1,31 @@
+{
+  "_id": "507f1f77bcf86cd799439011",
+  "title": "StemForge Demo",
+  "artistId": "507f1f77bcf86cd799439012",
+  "genre": "Electronic",
+  "bpm": 128,
+  "key": "Am",
+  "tags": ["electronic", "demo"],
+  "coverImageUrl": null,
+  "description": "Sample track metadata for the frontend-backend contract.",
+  "isPublic": true,
+  "isDownloadable": true,
+  "stems": [
+    {
+      "stemId": "507f1f77bcf86cd799439013",
+      "name": "Drums",
+      "audioUrl": "https://example.invalid/audio/demo-drums.mp3",
+      "duration": 30,
+      "fileSize": 480000
+    },
+    {
+      "stemId": "507f1f77bcf86cd799439014",
+      "name": "Bass",
+      "audioUrl": "https://example.invalid/audio/demo-bass.mp3",
+      "duration": 30,
+      "fileSize": 520000
+    }
+  ],
+  "likesCount": 0,
+  "createdAt": "2026-10-08T11:00:00.000Z"
+}
