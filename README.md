@@ -89,3 +89,29 @@ Health endpoint: https://stemforge-server.onrender.com/api/health
 
 Create pull requests into `dev`. Promote verified versions from
 `dev` to `main`.
+
+## Cloudinary configuration and upload check
+
+Set these variables in your local `.env`:
+
+- `CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_API_KEY`
+- `CLOUDINARY_API_SECRET`
+
+Keep real credentials out of `.env.example` and Git.
+
+To verify audio upload, run from the repository root:
+
+```powershell
+node .\scripts\check-cloudinary-upload.js "C:\path\audio.mp3"
+```
+
+The script accepts a local MP3 or WAV file up to 5 MiB.
+This limit applies only to the diagnostic script.
+
+Each run uploads a new test asset and prints its public ID,
+HTTPS URL, duration in seconds, and size in bytes.
+Open the returned URL to check playback.
+
+The initial audio delivery check confirmed HTTP Range support:
+the CDN returned `206 Partial Content` for a partial file request.
