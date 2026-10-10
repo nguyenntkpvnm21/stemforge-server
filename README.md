@@ -115,3 +115,17 @@ Open the returned URL to check playback.
 
 The initial audio delivery check confirmed HTTP Range support:
 the CDN returned `206 Partial Content` for a partial file request.
+
+## API documentation
+
+Swagger UI is available at `/api-docs/`.
+
+For local development:
+1. Run `npm run dev`.
+2. Open http://localhost:5000/api-docs/.
+3. Expand `GET /api/health`, select **Try it out**, then **Execute**.
+
+For the deployed service, append `/api-docs/` to the Render base URL.
+
+The documentation currently covers the health endpoint. This endpoint
+returns the API status and does not actively check external services.
