@@ -2,8 +2,17 @@ const express = require('express');
 const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
+const authRoutes = require('./routes/auth.routes');
 
 const app = express();
+
+const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS || 0);
+
+if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0) {
+  throw new Error('TRUST_PROXY_HOPS must be a non-negative integer.');
+}
+
+app.set('trust proxy', trustProxyHops);
 
 app.use(
   cors({
@@ -12,6 +21,7 @@ app.use(
 );
 
 app.use(express.json());
+app.use('/api/auth', authRoutes);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 /**
