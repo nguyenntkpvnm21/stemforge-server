@@ -11,6 +11,20 @@ const router = express.Router();
 
 router.use((req, res, next) => {
   res.set('Cache-Control', 'no-store');
+
+  if (process.env.PROXY_DEBUG === 'true') {
+    console.info(
+      'Auth proxy diagnostic:',
+      JSON.stringify({
+        trustProxyHops: req.app.get('trust proxy'),
+        clientIp: req.ip,
+        proxyIps: req.ips,
+        socketIp: req.socket.remoteAddress,
+        forwardedFor: req.get('x-forwarded-for') || null,
+      })
+    );
+  }
+
   next();
 });
 
