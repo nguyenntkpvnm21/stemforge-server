@@ -127,5 +127,50 @@ For local development:
 
 For the deployed service, append `/api-docs/` to the Render base URL.
 
-The documentation currently covers the health endpoint. This endpoint
-returns the API status and does not actively check external services.
+The documentation covers health and account authentication endpoints.
+The health endpoint returns the API status and does not actively check
+external services.
+
+## Authentication
+
+Set `JWT_SECRET` in the local `.env` file to a cryptographically random
+secret. Keep its value blank in `.env.example` and configure the real
+secret separately on Render.
+
+| Method | Endpoint | Authentication |
+| --- | --- | --- |
+| POST | `/api/auth/register` | Public |
+| POST | `/api/auth/login` | Public |
+| GET | `/api/auth/me` | Bearer access token |
+
+Registration and login return `{ data: { user, accessToken } }`.
+The current-account endpoint returns `{ data: { user } }`.
+Responses do not include `passwordHash`.
+
+Access tokens expire after one hour. Log in again to obtain a new token.
+For protected requests, send `Authorization: Bearer <accessToken>`.
+
+Registration always creates a `user` account. Client-supplied role
+values are ignored.
+
+Registration and login share a limit of 20 requests per IP within
+15 minutes, including successful and unsuccessful requests.
+Exceeding the limit returns HTTP 429 with a `Retry-After` header.
+Counters are stored in process memory and reset when the server restarts.
+
+To test authentication in Swagger UI:
+1. Execute `POST /api/auth/login` with an existing account.
+2. Copy the returned access token.
+3. Select **Authorize** and paste only the token.
+4. Execute `GET /api/auth/me`.
+
+### Proxy configuration
+
+Set `TRUST_PROXY_HOPS=0` when running the API directly on your local machine.
+
+When deploying behind a reverse proxy, configure the number of trusted
+proxy hops for the hosting environment and verify that the API identifies
+the correct client IP.
+
+The API logs the client IP when an authentication request exceeds the
+rate limit.
