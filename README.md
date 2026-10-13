@@ -166,11 +166,35 @@ To test authentication in Swagger UI:
 
 ### Proxy configuration
 
-Set `TRUST_PROXY_HOPS=0` when running the API directly on your local machine.
+| Environment | TRUST_PROXY_HOPS | PROXY_DEBUG |
+| --- | --- | --- |
+| Local development without a reverse proxy | 0 | false |
+| Current Render deployment | 3 | false |
 
-When deploying behind a reverse proxy, configure the number of trusted
-proxy hops for the hosting environment and verify that the API identifies
-the correct client IP.
+The Render proxy configuration was verified on October 13, 2026.
+The API client IP matched the IP reported by Cloudflare's trace endpoint
+on the same service domain.
 
-The API logs the client IP when an authentication request exceeds the
-rate limit.
+Re-verify the trusted hop count if the hosting environment or proxy
+topology changes.
+
+Set PROXY_DEBUG=true temporarily to log the effective proxy setting,
+client IP, socket IP, and forwarded IP chain for authentication requests.
+Disable it after troubleshooting. These diagnostics do not log request
+bodies, passwords, or access tokens.
+
+### Production verification
+
+The following checks passed on Render:
+
+- Swagger login and authenticated account retrieval returned 200.
+- Authentication requests reached the shared limit of 20 requests per
+  client IP within 15 minutes.
+- Requests exceeding the limit returned 429 with a Retry-After header
+  and the documented JSON error message.
+- A client-supplied X-Forwarded-For value did not change the detected
+  client IP or bypass the active rate limit.
+- The health endpoint returned 200 after proxy diagnostics were disabled.
+
+The rate limiter uses an in-memory store. Its counters reset when the
+server process restarts.
