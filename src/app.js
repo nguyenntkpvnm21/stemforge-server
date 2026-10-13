@@ -3,6 +3,7 @@ const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 const authRoutes = require('./routes/auth.routes');
+const errorHandler = require('./middlewares/error.middleware');
 
 const app = express();
 
@@ -62,5 +63,7 @@ app.use((req, res) => {
     message: 'Route not found',
   });
 });
+
+app.use(errorHandler);
 
 module.exports = app;
