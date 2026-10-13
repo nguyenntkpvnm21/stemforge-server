@@ -68,13 +68,19 @@ router.use((req, res, next) => {
  *             schema:
  *               $ref: '#/components/schemas/AuthResponse'
  *       '400':
- *         description: Invalid registration data.
+ *         description: Invalid registration data or malformed JSON request body.
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       '409':
  *         description: Email is already registered.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       '413':
+ *         description: The JSON request body exceeds the parser size limit.
  *         content:
  *           application/json:
  *             schema:
@@ -134,13 +140,19 @@ router.post('/register', authRateLimiter, register);
  *             schema:
  *               $ref: '#/components/schemas/AuthResponse'
  *       '400':
- *         description: Invalid login data.
+ *         description: Invalid login data or malformed JSON request body.
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       '401':
  *         description: Invalid email or password.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       '413':
+ *         description: The JSON request body exceeds the parser size limit.
  *         content:
  *           application/json:
  *             schema:
