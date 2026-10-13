@@ -198,3 +198,19 @@ The following checks passed on Render:
 
 The rate limiter uses an in-memory store. Its counters reset when the
 server process restarts.
+
+## Error responses
+
+The error middleware returns JSON responses with a `message` field.
+
+| Error | HTTP status | Message |
+| --- | --- | --- |
+| Malformed JSON request body | 400 | Request body must contain valid JSON. |
+| JSON request body exceeds the parser size limit | 413 | Request body exceeds the allowed size. |
+| Unhandled server error | 500 | Internal server error. |
+
+Other client errors reaching the middleware retain their HTTP status
+and return the generic message `Invalid request.`
+
+Unhandled server errors return a generic response without internal error
+details or stack traces.
