@@ -64,4 +64,45 @@ async function listTracks(req, res, next) {
   }
 }
 
-module.exports = { listTracks };
+async function getTrack(req, res, next) {
+  const { trackId } = req.params;
+
+  if (
+    typeof trackId !== 'string' ||
+    !/^[a-fA-F0-9]{24}$/.test(trackId)
+  ) {
+    return res.status(400).json({
+      message: 'trackId must be a valid MongoDB ObjectId.',
+    });
+  }
+
+  try {
+    const accessFilter = req.user?._id
+      ? {
+          $or: [
+            { isPublic: true },
+            { artistId: req.user._id },
+          ],
+        }
+      : { isPublic: true };
+
+    const track = await Track.findOne({
+      _id: trackId,
+      ...accessFilter,
+    }).exec();
+
+    if (!track) {
+      return res.status(404).json({
+        message: 'Track not found',
+      });
+    }
+
+    return res.status(200).json({
+      data: track,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+module.exports = { listTracks, getTrack };
