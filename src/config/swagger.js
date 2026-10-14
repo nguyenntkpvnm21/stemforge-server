@@ -25,6 +25,10 @@ const swaggerSpec = swaggerJsdoc({
         name: 'Auth',
         description: 'Registration, login, and current account',
       },
+      {
+        name: 'Tracks',
+        description: 'Track browsing and metadata',
+},
     ],
     components: {
       securitySchemes: {
