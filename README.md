@@ -253,3 +253,59 @@ stem-count boundaries, generated IDs, and invalid metadata.
 Tests run in memory without connecting to MongoDB or uploading audio.
 The fixture is a snapshot of the current draft contract and should be
 updated alongside agreed contract changes.
+
+## Public Track list API
+
+GET /api/tracks
+
+This endpoint lists public tracks without requiring authentication.
+Results are ordered by `createdAt` descending, then `_id` descending
+to keep ordering consistent when creation timestamps are equal.
+
+Query parameters:
+- `page`: positive integer, default 1.
+- `limit`: integer from 1 to 100, default 12.
+
+Example:
+
+```text
+GET /api/tracks?page=2&limit=5
+```
+
+Successful responses use this structure:
+
+```json
+{
+  "data": [],
+  "pagination": {
+    "page": 1,
+    "limit": 12,
+    "total": 0,
+    "totalPages": 0
+  }
+}
+```
+
+`total` counts public tracks only. When no public tracks exist,
+`totalPages` is zero. A page beyond the available results returns
+an empty `data` array.
+
+Invalid pagination parameters return HTTP 400 with a readable
+`message`. Database errors are forwarded to the error middleware.
+Responses include `Cache-Control: no-store`.
+
+Only the list endpoint is implemented at this stage.
+Track detail, creation, editing, and deletion are pending.
+The Track/Stem data contract remains a draft awaiting teammate review.
+
+### Track tests
+
+```sh
+npm run test:tracks
+```
+
+Runs 32 tests: 20 model tests and 12 list-controller tests.
+
+Controller tests cover public-query filters, sorting, pagination,
+invalid parameters, and forwarding database errors.
+Database queries are mocked; these tests do not connect to MongoDB.

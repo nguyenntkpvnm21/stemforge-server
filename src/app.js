@@ -4,6 +4,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 const authRoutes = require('./routes/auth.routes');
 const errorHandler = require('./middlewares/error.middleware');
+const trackRoutes = require('./routes/track.routes');
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use(
 
 app.use(express.json());
 app.use('/api/auth', authRoutes);
+app.use('/api/tracks', trackRoutes);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 /**
