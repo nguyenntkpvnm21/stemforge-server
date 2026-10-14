@@ -294,8 +294,8 @@ Invalid pagination parameters return HTTP 400 with a readable
 `message`. Database errors are forwarded to the error middleware.
 Responses include `Cache-Control: no-store`.
 
-Only the list endpoint is implemented at this stage.
-Track detail, creation, editing, and deletion are pending.
+The list and detail endpoints are implemented.
+Track creation, editing, and deletion are pending.
 The Track/Stem data contract remains a draft awaiting teammate review.
 
 ### Track tests
@@ -304,8 +304,40 @@ The Track/Stem data contract remains a draft awaiting teammate review.
 npm run test:tracks
 ```
 
-Runs 32 tests: 20 model tests and 12 list-controller tests.
+Runs 41 tests: 20 model tests, 12 list-controller tests, and 9 detail-controller tests.
 
 Controller tests cover public-query filters, sorting, pagination,
 invalid parameters, and forwarding database errors.
 Database queries are mocked; these tests do not connect to MongoDB.
+
+## Track detail API
+
+GET /api/tracks/:trackId
+
+Returns an accessible Track object wrapped in `data`.
+
+Access rules:
+- Guests can view public tracks.
+- Authenticated users can view public tracks and their own private tracks.
+- Private tracks belonging to another owner are not accessible.
+- Missing and inaccessible tracks both return HTTP 404.
+
+Authentication is optional when no Authorization header is supplied.
+If a header is supplied, it must contain a valid Bearer access token.
+
+Responses:
+- 200: Track returned in `data`.
+- 400: Track ID is not a 24-character hexadecimal ObjectId.
+- 401: Authorization header or access token is invalid or expired.
+- 404: Track not found or not accessible.
+
+Responses include `Cache-Control: no-store`.
+Database query errors are forwarded to the error middleware.
+
+Validation:
+- Nine detail-controller tests cover responses, access-query filters,
+  invalid IDs, and forwarding database errors.
+- Local API checks with temporary Atlas records verified public access,
+  owner access to private tracks, and rejection of unauthorized access.
+- The public list excluded both private check tracks.
+- Temporary records and setup files were removed after verification.

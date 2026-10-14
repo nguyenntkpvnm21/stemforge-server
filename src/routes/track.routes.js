@@ -1,5 +1,10 @@
 const express = require('express');
-const { listTracks } = require('../controllers/track.controller');
+const {
+  listTracks,
+  getTrack,
+} = require('../controllers/track.controller');
+
+const optionalAuthenticate = require('../middlewares/optional-auth.middleware');
 
 const router = express.Router();
 
@@ -225,5 +230,82 @@ router.use((req, res, next) => {
  *                   message: The requested page is too large.
  */
 router.get('/', listTracks);
+
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     TrackResponse:
+ *       type: object
+ *       required: [data]
+ *       properties:
+ *         data:
+ *           $ref: '#/components/schemas/Track'
+ * /api/tracks/{trackId}:
+ *   get:
+ *     tags: [Tracks]
+ *     summary: Get an accessible track
+ *     description: >-
+ *       Guests can view public tracks. Authenticated users can also view
+ *       their own private tracks. Missing and inaccessible tracks both
+ *       return 404. If an Authorization header is supplied, it must
+ *       contain a valid Bearer access token.
+ *       The Track/Stem contract is currently a draft.
+ *     security:
+ *       - {}
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: trackId
+ *         required: true
+ *         description: Track ID represented as a MongoDB ObjectId string.
+ *         schema:
+ *           type: string
+ *           pattern: '^[a-fA-F0-9]{24}$'
+ *           example: '507f1f77bcf86cd799439011'
+ *     responses:
+ *       '200':
+ *         description: Accessible Track object.
+ *         headers:
+ *           Cache-Control:
+ *             description: Prevents caching of the response.
+ *             schema:
+ *               type: string
+ *               enum: [no-store]
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TrackResponse'
+ *       '400':
+ *         description: Invalid Track ID format.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: trackId must be a valid MongoDB ObjectId.
+ *       '401':
+ *         description: A supplied Authorization header or token is invalid.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               invalidHeader:
+ *                 value:
+ *                   message: Authentication required.
+ *               invalidToken:
+ *                 value:
+ *                   message: Invalid or expired access token.
+ *       '404':
+ *         description: Track does not exist or is not accessible.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Track not found
+ */
+router.get('/:trackId', optionalAuthenticate, getTrack);
 
 module.exports = router;
