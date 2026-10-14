@@ -294,8 +294,8 @@ Invalid pagination parameters return HTTP 400 with a readable
 `message`. Database errors are forwarded to the error middleware.
 Responses include `Cache-Control: no-store`.
 
-The list and detail endpoints are implemented.
-Track creation, editing, and deletion are pending.
+Track listing, detail, and creation are implemented.
+Track editing and deletion are pending.
 The Track/Stem data contract remains a draft awaiting teammate review.
 
 ### Track tests
@@ -304,7 +304,12 @@ The Track/Stem data contract remains a draft awaiting teammate review.
 npm run test:tracks
 ```
 
-Runs 41 tests: 20 model tests, 12 list-controller tests, and 9 detail-controller tests.
+Runs 86 tests:
+- 20 model tests.
+- 12 list-controller tests.
+- 9 detail-controller tests.
+- 34 creation-input validator tests.
+- 11 creation-controller tests.
 
 Controller tests cover public-query filters, sorting, pagination,
 invalid parameters, and forwarding database errors.
@@ -341,3 +346,73 @@ Validation:
   owner access to private tracks, and rejection of unauthorized access.
 - The public list excluded both private check tracks.
 - Temporary records and setup files were removed after verification.
+
+## Track creation API
+
+POST /api/tracks
+
+Requires a valid Bearer access token and a JSON request body.
+
+Required fields:
+- `title`, `genre`, and `key`: non-empty strings.
+- `bpm`: positive finite number.
+- `isPublic` and `isDownloadable`: explicit booleans.
+- `stems`: an array containing 1–4 stem objects.
+
+Each stem requires:
+- `name`: non-empty string.
+- `audioUrl`: HTTPS URL.
+- `duration`: positive finite number in seconds.
+- `fileSize`: positive safe integer in bytes.
+
+Optional fields:
+- `tags`: array of non-empty strings; defaults to an empty array.
+- `coverImageUrl`: HTTPS URL or null; defaults to null.
+- `description`: string; defaults to an empty string.
+
+Input types are checked before Mongoose casting. Numeric strings
+and string booleans are rejected.
+
+The backend assigns `artistId` from the authenticated account,
+sets `likesCount` to zero, and generates Track and Stem IDs.
+
+Client-supplied `_id`, `artistId`, `likesCount`, `createdAt`,
+`stemId`, and other unsupported fields are rejected.
+
+Example request:
+
+```json
+{
+  "title": "Private demo",
+  "genre": "Electronic",
+  "bpm": 128,
+  "key": "Am",
+  "isPublic": false,
+  "isDownloadable": false,
+  "stems": [
+    {
+      "name": "Drums",
+      "audioUrl": "https://example.invalid/audio/demo.mp3",
+      "duration": 30.125,
+      "fileSize": 480000
+    }
+  ]
+}
+```
+
+The example audio URL is a placeholder and cannot play audio.
+
+A successful request returns HTTP 201 with the saved Track object
+wrapped in `data`. Invalid metadata returns HTTP 400.
+Missing or invalid credentials return HTTP 401.
+Oversized JSON bodies return HTTP 413.
+
+The endpoint stores supplied audio metadata. File uploading and
+verification are separate pending features.
+
+Validation:
+- Creation tests verify input types, server-managed fields,
+  ownership assignment, responses, and error handling.
+- Local checks against Atlas verified creation, generated IDs,
+  defaults, private access, and rejection of invalid requests.
+- The temporary Track and response file were removed after testing.

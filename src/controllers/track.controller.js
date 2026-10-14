@@ -1,5 +1,9 @@
 const Track = require('../models/Track');
 
+const {
+  validateCreateTrackInput,
+} = require('../validators/track.validator');
+
 function parsePositiveInteger(value, defaultValue) {
   if (value === undefined) {
     return defaultValue;
@@ -105,4 +109,40 @@ async function getTrack(req, res, next) {
   }
 }
 
-module.exports = { listTracks, getTrack };
+async function createTrack(req, res, next) {
+  if (!req.user?._id) {
+    return res.status(401).json({
+      message: 'Authentication required.',
+    });
+  }
+
+  const validationMessage = validateCreateTrackInput(req.body);
+
+  if (validationMessage) {
+    return res.status(400).json({
+      message: validationMessage,
+    });
+  }
+
+  try {
+    const track = await Track.create({
+      ...req.body,
+      artistId: req.user._id,
+      likesCount: 0,
+    });
+
+    return res.status(201).json({
+      data: track,
+    });
+  } catch (error) {
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        message: 'Track data failed validation.',
+      });
+    }
+
+    return next(error);
+  }
+}
+
+module.exports = { listTracks, getTrack, createTrack };

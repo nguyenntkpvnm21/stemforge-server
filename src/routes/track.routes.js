@@ -2,8 +2,9 @@ const express = require('express');
 const {
   listTracks,
   getTrack,
+  createTrack,
 } = require('../controllers/track.controller');
-
+const authenticate = require('../middlewares/auth.middleware');
 const optionalAuthenticate = require('../middlewares/optional-auth.middleware');
 
 const router = express.Router();
@@ -230,6 +231,198 @@ router.use((req, res, next) => {
  *                   message: The requested page is too large.
  */
 router.get('/', listTracks);
+
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     CreateStemInput:
+ *       type: object
+ *       additionalProperties: false
+ *       required: [name, audioUrl, duration, fileSize]
+ *       properties:
+ *         name:
+ *           type: string
+ *           minLength: 1
+ *           pattern: '\S'
+ *           example: Drums
+ *         audioUrl:
+ *           type: string
+ *           format: uri
+ *           description: HTTPS URL for an existing audio file.
+ *           example: 'https://example.invalid/audio/demo.mp3'
+ *         duration:
+ *           type: number
+ *           minimum: 0
+ *           exclusiveMinimum: true
+ *           description: Positive finite duration in seconds.
+ *           example: 30.125
+ *         fileSize:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 9007199254740991
+ *           description: File size in bytes.
+ *           example: 480000
+ *     CreateTrackRequest:
+ *       type: object
+ *       additionalProperties: false
+ *       required:
+ *         - title
+ *         - genre
+ *         - bpm
+ *         - key
+ *         - isPublic
+ *         - isDownloadable
+ *         - stems
+ *       properties:
+ *         title:
+ *           type: string
+ *           minLength: 1
+ *           pattern: '\S'
+ *           example: Private demo
+ *         genre:
+ *           type: string
+ *           minLength: 1
+ *           pattern: '\S'
+ *           example: Electronic
+ *         bpm:
+ *           type: number
+ *           minimum: 0
+ *           exclusiveMinimum: true
+ *           description: Positive finite tempo in beats per minute.
+ *           example: 128
+ *         key:
+ *           type: string
+ *           minLength: 1
+ *           pattern: '\S'
+ *           example: Am
+ *         tags:
+ *           type: array
+ *           default: []
+ *           items:
+ *             type: string
+ *             minLength: 1
+ *             pattern: '\S'
+ *         coverImageUrl:
+ *           type: string
+ *           format: uri
+ *           nullable: true
+ *           default: null
+ *           description: HTTPS cover URL, or null.
+ *         description:
+ *           type: string
+ *           default: ''
+ *         isPublic:
+ *           type: boolean
+ *           example: false
+ *         isDownloadable:
+ *           type: boolean
+ *           example: false
+ *         stems:
+ *           type: array
+ *           minItems: 1
+ *           maxItems: 4
+ *           items:
+ *             $ref: '#/components/schemas/CreateStemInput'
+ * /api/tracks:
+ *   post:
+ *     tags: [Tracks]
+ *     summary: Create a track
+ *     description: >-
+ *       Requires authentication. The backend assigns the owner from the
+ *       authenticated account, sets likesCount to zero, and generates IDs.
+ *       Unsupported fields are rejected, including client-supplied owner,
+ *       IDs, creation time, and likes count. Numbers and booleans must use
+ *       their actual JSON types. This endpoint stores supplied metadata;
+ *       uploading and verifying audio files are separate pending features.
+ *       The example audio URL is a placeholder and cannot play audio.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateTrackRequest'
+ *           example:
+ *             title: Private demo
+ *             genre: Electronic
+ *             bpm: 128
+ *             key: Am
+ *             isPublic: false
+ *             isDownloadable: false
+ *             stems:
+ *               - name: Drums
+ *                 audioUrl: 'https://example.invalid/audio/demo.mp3'
+ *                 duration: 30.125
+ *                 fileSize: 480000
+ *     responses:
+ *       '201':
+ *         description: Track created successfully.
+ *         headers:
+ *           Cache-Control:
+ *             schema:
+ *               type: string
+ *               enum: [no-store]
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TrackResponse'
+ *       '400':
+ *         description: Invalid JSON, metadata, or unsupported fields.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               invalidBpm:
+ *                 value:
+ *                   message: bpm must be a positive number.
+ *               unsupportedFields:
+ *                 value:
+ *                   message: Request contains unsupported Track fields.
+ *               invalidJson:
+ *                 value:
+ *                   message: Request body must contain valid JSON.
+ *               modelValidation:
+ *                 value:
+ *                   message: Track data failed validation.
+ *       '401':
+ *         description: Missing, invalid, or expired credentials.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               missingCredentials:
+ *                 value:
+ *                   message: Authentication required.
+ *               invalidToken:
+ *                 value:
+ *                   message: Invalid or expired access token.
+ *       '413':
+ *         description: JSON request body exceeds the allowed size.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Request body exceeds the allowed size.
+ *       '500':
+ *         description: Server or authentication service error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               internalError:
+ *                 value:
+ *                   message: Internal server error.
+ *               authenticationError:
+ *                 value:
+ *                   message: Unable to authenticate. Please try again later.
+ */
+router.post('/', authenticate, createTrack);
 
 /**
  * @openapi
