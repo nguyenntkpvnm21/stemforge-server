@@ -214,3 +214,42 @@ and return the generic message `Invalid request.`
 
 Unhandled server errors return a generic response without internal error
 details or stack traces.
+
+## Track and Stem models (draft)
+
+The models implement the proposed Track/Stem contract while teammate
+review is pending.
+
+A Track embeds 1–4 Stem subdocuments and preserves their array order.
+Each stem has a stable ObjectId stored as `stemId`. A new ID is generated
+when one is not supplied, and duplicate stem IDs within a track are rejected.
+
+Model rules:
+- Title, genre, and musical key must be non-empty strings.
+- BPM and stem duration must be positive finite numbers.
+- Stem file size must be a positive integer in bytes.
+- Audio URLs must use HTTPS.
+- Cover image URL defaults to null; a supplied URL must use HTTPS.
+- Tags default to an empty array and description defaults to an empty string.
+- Visibility and download flags require explicit boolean values.
+- Likes count defaults to zero and must be a non-negative integer.
+- Track creation time is stored as `createdAt`.
+- Public JSON omits the internal version field `__v`.
+
+Model validation runs after Mongoose casting. The API layer will validate
+request input types, assign the authenticated owner, and enforce ownership.
+
+### Model tests
+
+Run:
+
+```sh
+npm run test:models
+```
+
+The 20 tests cover the contract sample, JSON serialization, defaults,
+stem-count boundaries, generated IDs, and invalid metadata.
+
+Tests run in memory without connecting to MongoDB or uploading audio.
+The fixture is a snapshot of the current draft contract and should be
+updated alongside agreed contract changes.
