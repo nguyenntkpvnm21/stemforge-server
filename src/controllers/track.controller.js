@@ -208,9 +208,46 @@ async function updateTrack(req, res, next) {
   }
 }
 
+async function deleteTrack(req, res, next) {
+  if (!req.user?._id) {
+    return res.status(401).json({
+      message: 'Authentication required.',
+    });
+  }
+
+  const { trackId } = req.params;
+
+  if (
+    typeof trackId !== 'string' ||
+    !/^[a-fA-F0-9]{24}$/.test(trackId)
+  ) {
+    return res.status(400).json({
+      message: 'trackId must be a valid MongoDB ObjectId.',
+    });
+  }
+
+  try {
+    const track = await Track.findOneAndDelete({
+      _id: trackId,
+      artistId: req.user._id,
+    }).exec();
+
+    if (!track) {
+      return res.status(404).json({
+        message: 'Track not found',
+      });
+    }
+
+    return res.status(204).end();
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   listTracks,
   getTrack,
   createTrack,
   updateTrack,
+  deleteTrack,
 };
