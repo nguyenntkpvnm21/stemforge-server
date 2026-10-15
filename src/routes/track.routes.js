@@ -3,6 +3,7 @@ const {
   listTracks,
   getTrack,
   createTrack,
+  updateTrack,
 } = require('../controllers/track.controller');
 const authenticate = require('../middlewares/auth.middleware');
 const optionalAuthenticate = require('../middlewares/optional-auth.middleware');
@@ -500,5 +501,166 @@ router.post('/', authenticate, createTrack);
  *               message: Track not found
  */
 router.get('/:trackId', optionalAuthenticate, getTrack);
+
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     UpdateTrackRequest:
+ *       type: object
+ *       minProperties: 1
+ *       additionalProperties: false
+ *       properties:
+ *         title:
+ *           type: string
+ *           minLength: 1
+ *           pattern: '\S'
+ *         genre:
+ *           type: string
+ *           minLength: 1
+ *           pattern: '\S'
+ *         bpm:
+ *           type: number
+ *           minimum: 0
+ *           exclusiveMinimum: true
+ *           description: Positive finite tempo in beats per minute.
+ *         key:
+ *           type: string
+ *           minLength: 1
+ *           pattern: '\S'
+ *         tags:
+ *           type: array
+ *           description: Use an empty array to clear tags.
+ *           items:
+ *             type: string
+ *             minLength: 1
+ *             pattern: '\S'
+ *         coverImageUrl:
+ *           type: string
+ *           format: uri
+ *           nullable: true
+ *           description: HTTPS cover URL, or null to remove it.
+ *         description:
+ *           type: string
+ *           description: Use an empty string to clear the description.
+ *         isPublic:
+ *           type: boolean
+ *         isDownloadable:
+ *           type: boolean
+ * /api/tracks/{trackId}:
+ *   patch:
+ *     tags: [Tracks]
+ *     summary: Update owned Track metadata
+ *     description: >-
+ *       Requires authentication and ownership. Only supplied metadata
+ *       fields are updated. Omitted fields remain unchanged.
+ *       Track ID, owner, stems, likes count, creation time, and internal
+ *       version fields cannot be changed through this endpoint.
+ *       Missing Tracks and Tracks belonging to another owner both
+ *       return 404. This operation does not create missing Tracks.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: trackId
+ *         required: true
+ *         description: Track ID represented as a MongoDB ObjectId string.
+ *         schema:
+ *           type: string
+ *           pattern: '^[a-fA-F0-9]{24}$'
+ *           example: '507f1f77bcf86cd799439011'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateTrackRequest'
+ *           examples:
+ *             renameOnly:
+ *               summary: Update only the title
+ *               value:
+ *                 title: Updated title
+ *             clearOptionalMetadata:
+ *               summary: Clear optional metadata and disable downloads
+ *               value:
+ *                 coverImageUrl: null
+ *                 description: ''
+ *                 tags: []
+ *                 isDownloadable: false
+ *     responses:
+ *       '200':
+ *         description: Track after applying the supplied changes.
+ *         headers:
+ *           Cache-Control:
+ *             schema:
+ *               type: string
+ *               enum: [no-store]
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TrackResponse'
+ *       '400':
+ *         description: Invalid ID, JSON, update metadata, or unsupported fields.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               invalidId:
+ *                 value:
+ *                   message: trackId must be a valid MongoDB ObjectId.
+ *               emptyUpdate:
+ *                 value:
+ *                   message: At least one Track field must be provided.
+ *               invalidBpm:
+ *                 value:
+ *                   message: bpm must be a positive number.
+ *               unsupportedFields:
+ *                 value:
+ *                   message: Request contains unsupported Track fields.
+ *       '401':
+ *         description: Missing, invalid, or expired credentials.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               missingCredentials:
+ *                 value:
+ *                   message: Authentication required.
+ *               invalidToken:
+ *                 value:
+ *                   message: Invalid or expired access token.
+ *       '404':
+ *         description: Track does not exist or belongs to another owner.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Track not found
+ *       '413':
+ *         description: JSON request body exceeds the allowed size.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Request body exceeds the allowed size.
+ *       '500':
+ *         description: Database or authentication service error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               internalError:
+ *                 value:
+ *                   message: Internal server error.
+ *               authenticationError:
+ *                 value:
+ *                   message: Unable to authenticate. Please try again later.
+ */
+router.patch('/:trackId', authenticate, updateTrack);
 
 module.exports = router;

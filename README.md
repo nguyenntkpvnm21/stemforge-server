@@ -294,8 +294,8 @@ Invalid pagination parameters return HTTP 400 with a readable
 `message`. Database errors are forwarded to the error middleware.
 Responses include `Cache-Control: no-store`.
 
-Track listing, detail, and creation are implemented.
-Track editing and deletion are pending.
+Track listing, detail, creation, and metadata updates are implemented.
+Track deletion and audio/stem replacement are pending.
 The Track/Stem data contract remains a draft awaiting teammate review.
 
 ### Track tests
@@ -304,12 +304,14 @@ The Track/Stem data contract remains a draft awaiting teammate review.
 npm run test:tracks
 ```
 
-Runs 86 tests:
+Runs 125 tests:
 - 20 model tests.
 - 12 list-controller tests.
 - 9 detail-controller tests.
 - 34 creation-input validator tests.
 - 11 creation-controller tests.
+- 26 update-input validator tests.
+- 13 update-controller tests.
 
 Controller tests cover public-query filters, sorting, pagination,
 invalid parameters, and forwarding database errors.
@@ -416,3 +418,58 @@ Validation:
 - Local checks against Atlas verified creation, generated IDs,
   defaults, private access, and rejection of invalid requests.
 - The temporary Track and response file were removed after testing.
+
+## Track metadata update API
+
+PATCH /api/tracks/:trackId
+
+Requires a valid Bearer access token. Only the owner can update
+a Track, whether it is public or private.
+
+Updates only the supplied fields:
+- `title`, `genre`, and `key`: non-empty strings.
+- `bpm`: positive finite number.
+- `tags`: array of non-empty strings.
+- `coverImageUrl`: HTTPS URL or null.
+- `description`: string.
+- `isPublic` and `isDownloadable`: booleans.
+
+At least one supported field must be supplied. Input types are
+validated before Mongoose casting.
+
+Example request:
+
+```json
+{
+  "title": "Updated title",
+  "isDownloadable": false
+}
+```
+
+Fields omitted from the request remain unchanged.
+Use null to remove the cover URL, an empty string to clear the
+description, and an empty array to clear tags.
+
+Track ID, owner, stems, likes count, creation time, and internal
+version fields cannot be changed through this endpoint.
+Unsupported fields and database update operators are rejected.
+
+Responses:
+- 200: Updated Track object wrapped in `data`.
+- 400: Invalid ID, empty update, invalid metadata, or unsupported fields.
+- 401: Missing, invalid, or expired credentials.
+- 404: Track does not exist or belongs to another owner.
+- 413: JSON request body exceeds the allowed size.
+
+The ownership condition is included in the database update query.
+Updates run model validation and do not create missing Tracks.
+Responses include `Cache-Control: no-store`.
+
+Validation:
+- Update tests cover partial input, forbidden fields, ownership
+  filters, responses, and error handling.
+- Local Atlas checks verified title-only updates and clearing
+  optional metadata while preserving all other response fields.
+- Rejected requests left the owned Track unchanged.
+- Updating a foreign-owner Track returned 404 and left it unchanged.
+- Both temporary Tracks and all local check files were removed.

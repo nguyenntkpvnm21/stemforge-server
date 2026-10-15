@@ -8,7 +8,7 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "test:models": "node --test --test-reporter=spec tests/track-model.test.js",
-    "test:tracks": "node --test --test-reporter=spec tests/track-model.test.js tests/track-list.test.js tests/track-detail.test.js tests/track-create-validator.test.js tests/track-create.test.js"
+    "test:tracks": "node --test --test-reporter=spec tests/track-model.test.js tests/track-list.test.js tests/track-detail.test.js tests/track-create-validator.test.js tests/track-create.test.js tests/track-update-validator.test.js tests/track-update.test.js"
   },
   "keywords": [],
   "author": "",
