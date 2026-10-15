@@ -294,8 +294,8 @@ Invalid pagination parameters return HTTP 400 with a readable
 `message`. Database errors are forwarded to the error middleware.
 Responses include `Cache-Control: no-store`.
 
-Track listing, detail, creation, and metadata updates are implemented.
-Track deletion and audio/stem replacement are pending.
+Track listing, detail, creation, metadata updates, and owner-only deletion are implemented.
+File uploads and audio/stem replacement are pending.
 The Track/Stem data contract remains a draft awaiting teammate review.
 
 ### Track tests
@@ -473,3 +473,27 @@ Validation:
 - Rejected requests left the owned Track unchanged.
 - Updating a foreign-owner Track returned 404 and left it unchanged.
 - Both temporary Tracks and all local check files were removed.
+
+### Delete a Track
+
+DELETE /api/tracks/:trackId
+
+Requires a valid Bearer access token. Only the Track owner can delete it,
+whether the Track is public or private.
+
+No request body is required.
+
+Responses:
+- 204: Track deleted successfully. The response has no body.
+- 400: Invalid Track ID.
+- 401: Missing, invalid, or expired authentication.
+- 404: Track does not exist or does not belong to the authenticated user.
+- 500: Internal server error.
+
+Responses use Cache-Control: no-store.
+
+After a successful deletion, the frontend must handle HTTP 204 without
+attempting to parse a JSON response.
+
+Deletion removes the Track document and its embedded stem metadata.
+It does not remove files from Cloudinary.

@@ -1,11 +1,15 @@
 const express = require('express');
+
 const {
   listTracks,
   getTrack,
   createTrack,
   updateTrack,
+  deleteTrack,
 } = require('../controllers/track.controller');
+
 const authenticate = require('../middlewares/auth.middleware');
+
 const optionalAuthenticate = require('../middlewares/optional-auth.middleware');
 
 const router = express.Router();
@@ -662,5 +666,78 @@ router.get('/:trackId', optionalAuthenticate, getTrack);
  *                   message: Unable to authenticate. Please try again later.
  */
 router.patch('/:trackId', authenticate, updateTrack);
+
+/**
+ * @openapi
+ * /api/tracks/{trackId}:
+ *   delete:
+ *     tags: [Tracks]
+ *     summary: Delete an owned Track
+ *     description: |
+ *       Requires authentication. Only the Track owner can delete it,
+ *       whether the Track is public or private.
+ *
+ *       Deletes the Track document and its embedded stem metadata.
+ *       Files stored in Cloudinary are not removed.
+ *
+ *       A successful response has no body.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: trackId
+ *         required: true
+ *         description: MongoDB ObjectId of the Track.
+ *         schema:
+ *           type: string
+ *           pattern: '^[a-fA-F0-9]{24}$'
+ *           example: '507f1f77bcf86cd799439011'
+ *     responses:
+ *       '204':
+ *         description: Track deleted successfully. No response body.
+ *         headers:
+ *           Cache-Control:
+ *             schema:
+ *               type: string
+ *               example: no-store
+ *       '400':
+ *         description: Invalid Track ID.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: trackId must be a valid MongoDB ObjectId.
+ *       '401':
+ *         description: Missing, invalid, or expired access token.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               missingToken:
+ *                 value:
+ *                   message: Authentication required.
+ *               invalidToken:
+ *                 value:
+ *                   message: Invalid or expired access token.
+ *       '404':
+ *         description: Track does not exist or belongs to another user.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Track not found
+ *       '500':
+ *         description: Internal server error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Internal server error.
+ */
+router.delete('/:trackId', authenticate, deleteTrack);
 
 module.exports = router;
