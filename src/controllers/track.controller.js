@@ -2,6 +2,7 @@ const Track = require('../models/Track');
 
 const {
   validateCreateTrackInput,
+  validateUpdateTrackInput,
 } = require('../validators/track.validator');
 
 function parsePositiveInteger(value, defaultValue) {
@@ -145,4 +146,71 @@ async function createTrack(req, res, next) {
   }
 }
 
-module.exports = { listTracks, getTrack, createTrack };
+async function updateTrack(req, res, next) {
+  if (!req.user?._id) {
+    return res.status(401).json({
+      message: 'Authentication required.',
+    });
+  }
+
+  const { trackId } = req.params;
+
+  if (
+    typeof trackId !== 'string' ||
+    !/^[a-fA-F0-9]{24}$/.test(trackId)
+  ) {
+    return res.status(400).json({
+      message: 'trackId must be a valid MongoDB ObjectId.',
+    });
+  }
+
+  const validationMessage = validateUpdateTrackInput(req.body);
+
+  if (validationMessage) {
+    return res.status(400).json({
+      message: validationMessage,
+    });
+  }
+
+  try {
+    const track = await Track.findOneAndUpdate(
+      {
+        _id: trackId,
+        artistId: req.user._id,
+      },
+      {
+        $set: req.body,
+      },
+      {
+        returnDocument: 'after',
+        runValidators: true,
+        upsert: false,
+      }
+    ).exec();
+
+    if (!track) {
+      return res.status(404).json({
+        message: 'Track not found',
+      });
+    }
+
+    return res.status(200).json({
+      data: track,
+    });
+  } catch (error) {
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        message: 'Track data failed validation.',
+      });
+    }
+
+    return next(error);
+  }
+}
+
+module.exports = {
+  listTracks,
+  getTrack,
+  createTrack,
+  updateTrack,
+};

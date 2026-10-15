@@ -18,6 +18,18 @@ const stemFields = new Set([
   'fileSize',
 ]);
 
+const updateTrackFields = new Set([
+  'title',
+  'genre',
+  'bpm',
+  'key',
+  'tags',
+  'coverImageUrl',
+  'description',
+  'isPublic',
+  'isDownloadable',
+]);
+
 function isObject(value) {
   return value !== null &&
     typeof value === 'object' &&
@@ -139,4 +151,65 @@ function validateCreateTrackInput(input) {
   return null;
 }
 
-module.exports = { validateCreateTrackInput };
+function validateUpdateTrackInput(input) {
+  if (!isObject(input)) {
+    return 'Request body must be a Track update object.';
+  }
+
+  const fields = Object.keys(input);
+
+  if (fields.length === 0) {
+    return 'At least one Track field must be provided.';
+  }
+
+  if (fields.some((field) => !updateTrackFields.has(field))) {
+    return 'Request contains unsupported Track fields.';
+  }
+
+  for (const field of ['title', 'genre', 'key']) {
+    if (hasOwn(input, field) && !isNonEmptyString(input[field])) {
+      return field + ' must be a non-empty string.';
+    }
+  }
+
+  if (hasOwn(input, 'bpm') && !isPositiveNumber(input.bpm)) {
+    return 'bpm must be a positive number.';
+  }
+
+  for (const field of ['isPublic', 'isDownloadable']) {
+    if (hasOwn(input, field) && typeof input[field] !== 'boolean') {
+      return field + ' must be a boolean.';
+    }
+  }
+
+  if (hasOwn(input, 'tags')) {
+    if (
+      !Array.isArray(input.tags) ||
+      !input.tags.every(isNonEmptyString)
+    ) {
+      return 'tags must be an array of non-empty strings.';
+    }
+  }
+
+  if (
+    hasOwn(input, 'description') &&
+    typeof input.description !== 'string'
+  ) {
+    return 'description must be a string.';
+  }
+
+  if (
+    hasOwn(input, 'coverImageUrl') &&
+    input.coverImageUrl !== null &&
+    !isHttpsUrl(input.coverImageUrl)
+  ) {
+    return 'coverImageUrl must be null or a valid HTTPS URL.';
+  }
+
+  return null;
+}
+
+module.exports = {
+  validateCreateTrackInput,
+  validateUpdateTrackInput,
+};
