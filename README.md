@@ -295,7 +295,8 @@ Invalid pagination parameters return HTTP 400 with a readable
 Responses include `Cache-Control: no-store`.
 
 Track listing, detail, creation, metadata updates, and owner-only deletion are implemented.
-File uploads and audio/stem replacement are pending.
+Authenticated audio uploads to Cloudinary are implemented.
+Audio/stem replacement, automatic cleanup of unused uploads, and Track-linked Cloudinary file deletion are pending.
 The Track/Stem data contract remains a draft awaiting teammate review.
 
 ### Track tests
@@ -312,6 +313,19 @@ Runs 125 tests:
 - 11 creation-controller tests.
 - 26 update-input validator tests.
 - 13 update-controller tests.
+
+Audio upload tests:
+- 19 multipart middleware tests
+- 28 upload service tests
+- 8 upload controller tests
+- 4 upload rate limit tests
+
+Run:
+npm run test:uploads
+
+Track tests: 133
+Audio upload tests: 59
+Total: 192
 
 Controller tests cover public-query filters, sorting, pagination,
 invalid parameters, and forwarding database errors.
@@ -497,3 +511,47 @@ attempting to parse a JSON response.
 
 Deletion removes the Track document and its embedded stem metadata.
 It does not remove files from Cloudinary.
+
+### Upload audio
+
+POST /api/uploads/audio
+
+Requires a valid Bearer access token.
+
+Send multipart/form-data containing exactly one file in the audio field.
+No additional form fields are accepted.
+
+Supported formats: MP3, WAV, FLAC.
+Maximum file size: 20 MiB (20,971,520 bytes).
+
+The server checks the filename and MIME type, then validates the format
+and metadata returned by Cloudinary.
+
+Rate limit: 10 authenticated requests per account per 15 minutes.
+Failed requests after authentication also count toward this limit.
+The current rate limiter stores counters in server memory.
+
+Responses:
+- 201: Audio uploaded successfully.
+- 400: Missing, empty, or invalid multipart input.
+- 401: Missing, invalid, or expired authentication.
+- 413: File exceeds the size limit.
+- 415: Unsupported Content-Type or invalid audio.
+- 429: Upload request limit exceeded.
+- 500: Unexpected internal error.
+- 502: Audio storage or upload processing failed.
+
+Successful responses contain data.audioUrl, data.duration,
+data.fileSize, and data.publicId.
+
+Duration and file size come from Cloudinary.
+Responses use Cache-Control: no-store.
+
+Uploading audio does not create a Track.
+Use audioUrl, duration, and fileSize in a stem when creating a Track.
+Do not include publicId in the Track creation request.
+
+Cloudinary URLs currently use public delivery.
+Track isPublic controls Track API visibility.
+
+Deleting a Track does not automatically delete its Cloudinary files.
