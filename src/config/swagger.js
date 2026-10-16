@@ -28,7 +28,11 @@ const swaggerSpec = swaggerJsdoc({
       {
         name: 'Tracks',
         description: 'Track browsing and metadata',
-},
+      },
+      {
+  name: 'Uploads',
+  description: 'Authenticated audio uploads',
+      },
     ],
     components: {
       securitySchemes: {

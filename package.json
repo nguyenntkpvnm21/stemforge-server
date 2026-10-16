@@ -8,7 +8,8 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "test:models": "node --test --test-reporter=spec tests/track-model.test.js",
-    "test:tracks": "node --test --test-reporter=spec tests/track-model.test.js tests/track-list.test.js tests/track-detail.test.js tests/track-create-validator.test.js tests/track-create.test.js tests/track-update-validator.test.js tests/track-update.test.js tests/track-delete.test.js"
+    "test:tracks": "node --test --test-reporter=spec tests/track-model.test.js tests/track-list.test.js tests/track-detail.test.js tests/track-create-validator.test.js tests/track-create.test.js tests/track-update-validator.test.js tests/track-update.test.js tests/track-delete.test.js",
+    "test:uploads": "node --test --test-reporter=spec tests/audio-upload-middleware.test.js tests/audio-upload-service.test.js tests/audio-upload-controller.test.js tests/audio-upload-rate-limit.test.js"
   },
   "keywords": [],
   "author": "",
@@ -23,6 +24,7 @@
     "express-rate-limit": "^8.7.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.11.1",
+    "multer": "^2.4.0",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1"
   },
