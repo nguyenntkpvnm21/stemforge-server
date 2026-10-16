@@ -12,6 +12,12 @@ const authenticate = require('../middlewares/auth.middleware');
 
 const optionalAuthenticate = require('../middlewares/optional-auth.middleware');
 
+const {
+  getTrackLike,
+  likeTrack,
+  unlikeTrack,
+} = require('../controllers/track-like.controller');
+
 const router = express.Router();
 
 router.use((req, res, next) => {
@@ -739,5 +745,183 @@ router.patch('/:trackId', authenticate, updateTrack);
  *               message: Internal server error.
  */
 router.delete('/:trackId', authenticate, deleteTrack);
+
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     TrackLikeResponse:
+ *       type: object
+ *       required:
+ *         - data
+ *       properties:
+ *         data:
+ *           type: object
+ *           required:
+ *             - trackId
+ *             - isLiked
+ *             - likesCount
+ *           properties:
+ *             trackId:
+ *               type: string
+ *               pattern: '^[a-fA-F0-9]{24}$'
+ *               example: '507f1f77bcf86cd799439011'
+ *             isLiked:
+ *               type: boolean
+ *               description: Whether the authenticated account likes this Track.
+ *             likesCount:
+ *               type: integer
+ *               minimum: 0
+ *               description: Total number of likes across all accounts.
+ *   parameters:
+ *     TrackLikeTrackId:
+ *       name: trackId
+ *       in: path
+ *       required: true
+ *       description: MongoDB ObjectId of the Track.
+ *       schema:
+ *         type: string
+ *         pattern: '^[a-fA-F0-9]{24}$'
+ *   responses:
+ *     TrackLikeBadRequest:
+ *       description: The Track ID is invalid.
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ErrorResponse'
+ *           example:
+ *             message: trackId must be a valid MongoDB ObjectId.
+ *     TrackLikeUnauthorized:
+ *       description: Authentication is missing, invalid, or expired.
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ErrorResponse'
+ *           example:
+ *             message: Authentication required.
+ *     TrackLikeNotFound:
+ *       description: The Track does not exist or is private and owned by another account.
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ErrorResponse'
+ *           example:
+ *             message: Track not found
+ *     TrackLikeServerError:
+ *       description: An internal error prevented the operation.
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ErrorResponse'
+ *           example:
+ *             message: Internal server error.
+ *
+ * /api/tracks/{trackId}/like:
+ *   parameters:
+ *     - $ref: '#/components/parameters/TrackLikeTrackId'
+ *   get:
+ *     tags:
+ *       - Tracks
+ *     summary: Get the current account's Like state
+ *     description: |
+ *       Requires authentication. Available for public Tracks and private
+ *       Tracks owned by the authenticated account.
+ *       Returns the account's Like state and the total likes count
+ *       from one transaction snapshot.
+ *       Responses use Cache-Control no-store.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       '200':
+ *         description: The current Like state.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TrackLikeResponse'
+ *             example:
+ *               data:
+ *                 trackId: '507f1f77bcf86cd799439011'
+ *                 isLiked: false
+ *                 likesCount: 2
+ *       '400':
+ *         $ref: '#/components/responses/TrackLikeBadRequest'
+ *       '401':
+ *         $ref: '#/components/responses/TrackLikeUnauthorized'
+ *       '404':
+ *         $ref: '#/components/responses/TrackLikeNotFound'
+ *       '500':
+ *         $ref: '#/components/responses/TrackLikeServerError'
+ *   put:
+ *     tags:
+ *       - Tracks
+ *     summary: Like a Track
+ *     description: |
+ *       Requires authentication. Available for public Tracks and private
+ *       Tracks owned by the authenticated account.
+ *       No request body is required.
+ *       Repeated requests from the same account do not add more likes.
+ *       The Like record and total count are updated in one transaction.
+ *       Responses use Cache-Control no-store.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       '200':
+ *         description: The account likes the Track, including when it already did.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TrackLikeResponse'
+ *             example:
+ *               data:
+ *                 trackId: '507f1f77bcf86cd799439011'
+ *                 isLiked: true
+ *                 likesCount: 3
+ *       '400':
+ *         $ref: '#/components/responses/TrackLikeBadRequest'
+ *       '401':
+ *         $ref: '#/components/responses/TrackLikeUnauthorized'
+ *       '404':
+ *         $ref: '#/components/responses/TrackLikeNotFound'
+ *       '500':
+ *         $ref: '#/components/responses/TrackLikeServerError'
+ *   delete:
+ *     tags:
+ *       - Tracks
+ *     summary: Unlike a Track
+ *     description: |
+ *       Requires authentication. Available for public Tracks and private
+ *       Tracks owned by the authenticated account.
+ *       No request body is required.
+ *       Removes only the authenticated account's Like.
+ *       Repeated requests do not decrease the count again.
+ *       The Like record and total count are updated in one transaction.
+ *       Returns HTTP 200 with the resulting Like state.
+ *       Responses use Cache-Control no-store.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       '200':
+ *         description: The account does not like the Track, including when it already did not.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TrackLikeResponse'
+ *             example:
+ *               data:
+ *                 trackId: '507f1f77bcf86cd799439011'
+ *                 isLiked: false
+ *                 likesCount: 2
+ *       '400':
+ *         $ref: '#/components/responses/TrackLikeBadRequest'
+ *       '401':
+ *         $ref: '#/components/responses/TrackLikeUnauthorized'
+ *       '404':
+ *         $ref: '#/components/responses/TrackLikeNotFound'
+ *       '500':
+ *         $ref: '#/components/responses/TrackLikeServerError'
+ */
+router.get('/:trackId/like', authenticate, getTrackLike);
+router.put('/:trackId/like', authenticate, likeTrack);
+router.delete('/:trackId/like', authenticate, unlikeTrack);
 
 module.exports = router;
