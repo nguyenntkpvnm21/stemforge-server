@@ -294,15 +294,23 @@ Invalid pagination parameters return HTTP 400 with a readable
 `message`. Database errors are forwarded to the error middleware.
 Responses include `Cache-Control: no-store`.
 
-Track listing, detail, creation, metadata updates, and owner-only deletion are implemented.
-Authenticated audio uploads to Cloudinary are implemented.
-Audio/stem replacement, automatic cleanup of unused uploads, and Track-linked Cloudinary file deletion are pending.
+Track listing, detail, creation, metadata updates, owner-only deletion,
+audio uploads, and authenticated likes are implemented.
+
+Audio/stem replacement is pending.
+
 The Track/Stem data contract remains a draft awaiting teammate review.
 
 ### Track tests
 
 ```sh
 npm run test:tracks
+```
+
+Run the Track Like model, service, and controller tests:
+
+```powershell
+npm run test:likes
 ```
 
 Runs 125 tests:
@@ -555,3 +563,51 @@ Cloudinary URLs currently use public delivery.
 Track isPublic controls Track API visibility.
 
 Deleting a Track does not automatically delete its Cloudinary files.
+
+## Track Likes
+
+All Track Like endpoints require a valid Bearer access token.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| GET | `/api/tracks/:trackId/like` | Get the current account's Like state and total likes count. |
+| PUT | `/api/tracks/:trackId/like` | Like a Track. Repeated requests do not add more likes. |
+| DELETE | `/api/tracks/:trackId/like` | Remove the current account's Like. Repeated requests do not decrease the count again. |
+
+These endpoints accept a Track ID in the path and require no request body.
+They are available for public Tracks and private Tracks owned by the
+authenticated account. Another account's private Track returns HTTP 404.
+
+All three endpoints return HTTP 200 on success:
+
+```json
+{
+  "data": {
+    "trackId": "507f1f77bcf86cd799439011",
+    "isLiked": true,
+    "likesCount": 3
+  }
+}
+```
+
+`isLiked` describes the authenticated account's Like state.
+`likesCount` is the total across all accounts.
+
+Invalid Track IDs return HTTP 400. Missing, invalid, or expired access
+tokens return HTTP 401. Missing or inaccessible Tracks return HTTP 404.
+Responses use `Cache-Control: no-store`.
+
+### Consistency and Track deletion
+
+A unique compound index on `trackId` and `userId` prevents duplicate Likes
+from the same account. Server startup waits for TrackLike indexes to be ready.
+
+Like and Unlike update the Like record and Track counter in one MongoDB
+transaction. The database must support transactions, as MongoDB Atlas does.
+The Like state and total count are read from one transaction snapshot.
+
+Owner-only Track deletion removes the Track and all associated Like records
+in one transaction. Successful Track deletion returns HTTP 204 with no body.
+
+Track deletion does not remove Cloudinary audio assets. Automatic cleanup
+of uploaded audio assets is pending.
