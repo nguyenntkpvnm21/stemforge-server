@@ -1,9 +1,10 @@
 const Track = require('../models/Track');
-
 const {
   validateCreateTrackInput,
   validateUpdateTrackInput,
 } = require('../validators/track.validator');
+const mongoose = require('mongoose');
+const TrackLike = require('../models/TrackLike');
 
 function parsePositiveInteger(value, defaultValue) {
   if (value === undefined) {
@@ -227,10 +228,33 @@ async function deleteTrack(req, res, next) {
   }
 
   try {
-    const track = await Track.findOneAndDelete({
-      _id: trackId,
-      artistId: req.user._id,
-    }).exec();
+    const track = await mongoose.connection.transaction(
+      async (session) => {
+        const deletedTrack = await Track.findOneAndDelete({
+          _id: trackId,
+          artistId: req.user._id,
+        })
+          .session(session)
+          .exec();
+
+        if (!deletedTrack) {
+          return null;
+        }
+
+        await TrackLike.deleteMany({
+          trackId: deletedTrack._id,
+        })
+          .session(session)
+          .exec();
+
+        return deletedTrack;
+      },
+      {
+        readPreference: 'primary',
+        readConcern: { level: 'snapshot' },
+        writeConcern: { w: 'majority' },
+      }
+    );
 
     if (!track) {
       return res.status(404).json({
