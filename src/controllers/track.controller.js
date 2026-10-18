@@ -6,6 +6,7 @@ const {
 const mongoose = require('mongoose');
 const TrackLike = require('../models/TrackLike');
 const trackResponseService = require('../services/track-response.service');
+const { parseTrackListFilters } = require('../validators/track-list-query.validator');
 const trackWriteOptions = {
   readPreference: 'primary',
   readConcern: { level: 'snapshot' },
@@ -27,6 +28,11 @@ function parsePositiveInteger(value, defaultValue) {
 }
 
 async function listTracks(req, res, next) {
+  const { filter, error } = parseTrackListFilters(req.query);
+  if (error) {
+    return res.status(400).json({ message: error });
+  }
+
   const page = parsePositiveInteger(req.query.page, 1);
   const limit = parsePositiveInteger(req.query.limit, 12);
 
@@ -51,8 +57,6 @@ async function listTracks(req, res, next) {
   }
 
   try {
-    const filter = { isPublic: true };
-
     const [tracks, total] = await Promise.all([
       Track.find(filter)
         .sort({ createdAt: -1, _id: -1 })
