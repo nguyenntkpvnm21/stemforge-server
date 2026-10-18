@@ -26,7 +26,7 @@ async function startServer(t, { likedIds = [], missingAuthor = false, expectedFi
     new Track({ ...sample, _id: secondId }),
     new Track({ ...sample, _id: privateId, isPublic: false }),
   ];
-  const calls = { authors: [], likes: [], create: [], update: [] };
+  const calls = { authors: [], likes: [], create: [], update: [], sorts: [] };
   const session = {};
   t.mock.method(mongoose.connection, 'transaction', async operation => operation(session));
   t.mock.method(User, 'findById', async id => ({ _id: id }));
@@ -52,11 +52,22 @@ async function startServer(t, { likedIds = [], missingAuthor = false, expectedFi
     assert.deepEqual(filter, expectedFilter);
     let skip = 0;
     let limit = 12;
+    let order;
     return {
-      sort() { return this; },
+      sort(value) { order = value; calls.sorts.push(value); return this; },
       skip(value) { skip = value; return this; },
       limit(value) { limit = value; return this; },
-      async exec() { return records.filter(track => track.isPublic).slice(skip, skip + limit); },
+      async exec() {
+        return records.filter(track => track.isPublic).sort((a, b) => {
+          for (const [field, direction] of Object.entries(order)) {
+            const left = field === '_id' ? String(a[field]) : a[field];
+            const right = field === '_id' ? String(b[field]) : b[field];
+            if (left < right) return -direction;
+            if (left > right) return direction;
+          }
+          return 0;
+        }).slice(skip, skip + limit);
+      },
     };
   });
   t.mock.method(Track, 'countDocuments', filter => {
@@ -134,12 +145,12 @@ test('authenticated list batches membership for visible page and detail reflects
   const server = await startServer(t, { likedIds: [sample._id] });
   const response = await server.send('', { userId: viewerId });
   assert.equal(response.status, 200);
-  assert.deepEqual(response.json.data.map(track => track.likedByMe), [true, false]);
+  assert.deepEqual(response.json.data.map(track => track.likedByMe), [false, true]);
   assert.equal(server.calls.authors.length, 1);
   assert.equal(server.calls.likes.length, 1);
   assert.deepEqual(server.calls.authors[0], { _id: { $in: [ownerId] } });
   assert.equal(String(server.calls.likes[0].userId), viewerId);
-  assert.deepEqual(server.calls.likes[0].trackId.$in.map(String), [sample._id, secondId]);
+  assert.deepEqual(server.calls.likes[0].trackId.$in.map(String), [secondId, sample._id]);
   const detail = await server.send(`/${sample._id}`, { userId: viewerId });
   assert.equal(detail.json.data.likedByMe, true);
 });
@@ -238,7 +249,7 @@ test('Swagger response and request schemas agree with the implemented contract',
 });
 
 test('filtered HTTP list preserves pagination, artist, viewer membership and optional authentication', async (t) => {
-  const server = await startServer(t, { likedIds: [secondId], expectedFilter: {
+  const server = await startServer(t, { likedIds: [sample._id], expectedFilter: {
     isPublic: true, title: { $regex: 'demo', $options: 'i' }, genre: { $regex: '^electronic$', $options: 'i' },
     key: { $regex: '^am$', $options: 'i' }, bpm: { $gte: 128, $lte: 128 },
   } });
@@ -247,10 +258,10 @@ test('filtered HTTP list preserves pagination, artist, viewer membership and opt
   assert.equal(response.status, 200);
   assert.deepEqual(response.json.pagination, { page: 2, limit: 1, total: 2, totalPages: 2 });
   assert.equal(response.json.data.length, 1);
-  assert.equal(response.json.data[0]._id, secondId);
+  assert.equal(response.json.data[0]._id, sample._id);
   assert.deepEqual(response.json.data[0].artist, artist);
   assert.equal(response.json.data[0].likedByMe, true);
-  assert.deepEqual(server.calls.likes[0].trackId.$in.map(String), [secondId]);
+  assert.deepEqual(server.calls.likes[0].trackId.$in.map(String), [sample._id]);
   assert.equal((await server.send(query)).json.data[0].likedByMe, false);
   assert.equal((await server.send(query, { authorization: 'Bearer invalid' })).status, 401);
 });
@@ -261,6 +272,8 @@ test('HTTP query parser rejects repeated, nested/operator and unsupported filter
     '?q=one&q=two', '?genre=Jazz&genre=Rock', '?key[]=Am', '?q[$regex]=.*', '?genre[$ne]=Jazz',
     '?bpmMin[$gte]=120', '?bpmMax=120&bpmMax=130', '?$where=true', '?isPublic=false',
     '?sort=likesCount', '?tags=rock', '?q=%20%20', '?bpmMin=130&bpmMax=120', '?bpmMax=Infinity',
+    '?tag=a&tag=b', '?tag[$ne]=Jazz', '?tag[]=Jazz', '?tag=%20%20', '?sort=',
+    '?sort=newest&sort=mostLiked', '?sort[$gt]=newest', '?sort=MostLiked',
   ]) {
     const response = await server.send(query);
     assert.equal(response.status, 400, query);
@@ -270,12 +283,59 @@ test('HTTP query parser rejects repeated, nested/operator and unsupported filter
   assert.equal(server.calls.likes.length, 0);
 });
 
+for (const [parameter, field] of Object.entries({ q: 'title', genre: 'genre', key: 'key', tag: 'tags' })) {
+  test('HTTP ' + parameter + '=%00 returns 400 before any database lookup', async (t) => {
+    const server = await startServer(t);
+    for (const value of ['%00', '%00demo', 'de%00mo', 'demo%00', '%20demo%00%20']) {
+      const response = await server.send('?' + parameter + '=' + value);
+      assert.equal(response.status, 400);
+      assert.deepEqual(response.json, { message: parameter + ' must not contain U+0000 (NUL).' });
+    }
+    for (const operation of [Track.find, Track.countDocuments, User.find, User.findById, TrackLike.find]) {
+      assert.equal(operation.mock.calls.length, 0);
+    }
+  });
+
+  test('HTTP ' + parameter + ' still accepts trimmed literal regex characters and textual NUL representations', async (t) => {
+    const literal = 'Demo.*[Live]+\\u0000 %00';
+    const escaped = 'Demo\\.\\*\\[Live\\]\\+\\\\u0000 %00';
+    const server = await startServer(t, { expectedFilter: {
+      isPublic: true, [field]: { $regex: parameter === 'q' ? escaped : '^' + escaped + '$', $options: 'i' },
+    } });
+    const response = await server.send('?' + parameter + '=' + encodeURIComponent('  ' + literal + '  '));
+    assert.equal(response.status, 200);
+    assert.equal(Track.find.mock.calls.length, 1);
+    assert.equal(Track.countDocuments.mock.calls.length, 1);
+    assert.equal(response.json.pagination.total, 2);
+  });
+}
+
 test('Swagger documents supported list filters, length limits and inclusive BPM semantics', () => {
   const operation = require('../src/config/swagger').paths['/api/tracks'].get;
   const parameters = Object.fromEntries(operation.parameters.map(p => [p.name, p]));
-  assert.deepEqual(Object.keys(parameters).sort(), ['bpmMax', 'bpmMin', 'genre', 'key', 'limit', 'page', 'q']);
-  for (const name of ['q', 'genre', 'key']) assert.equal(parameters[name].schema.maxLength, 100);
+  assert.deepEqual(Object.keys(parameters).sort(), ['bpmMax', 'bpmMin', 'genre', 'key', 'limit', 'page', 'q', 'sort', 'tag']);
+  for (const name of ['q', 'genre', 'key', 'tag']) assert.equal(parameters[name].schema.maxLength, 100);
+  assert.deepEqual(parameters.sort.schema.enum, ['newest', 'mostLiked']);
+  assert.equal(parameters.sort.schema.default, 'newest');
   for (const name of ['bpmMin', 'bpmMax']) assert.match(parameters[name].description, /[Ii]nclusive/);
   assert.match(operation.description, /AND/);
   assert.match(operation.description, /literal/);
+  assert.match(operation.description, /U\+0000 \(NUL\).*400/);
+});
+
+test('tag/mostLiked HTTP pagination uses deterministic ties and retains viewer context and total', async (t) => {
+  const server = await startServer(t, { likedIds: [sample._id], expectedFilter: {
+    isPublic: true, tags: { $regex: '^DEMO$', $options: 'i' },
+  } });
+  const response = await server.send('?tag=%20DEMO%20&sort=mostLiked&page=2&limit=1', { userId: viewerId });
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.json.pagination, { page: 2, limit: 1, total: 2, totalPages: 2 });
+  assert.equal(response.json.data[0]._id, sample._id);
+  assert.equal(response.json.data[0].likedByMe, true);
+  assert.deepEqual(response.json.data[0].artist, artist);
+  assert.deepEqual(server.calls.sorts[0], { likesCount: -1, createdAt: -1, _id: -1 });
+  const newest = await server.send('?tag=%20DEMO%20&sort=newest&page=2&limit=1');
+  assert.deepEqual(newest.json.pagination, response.json.pagination);
+  assert.equal(newest.json.data[0].likedByMe, false);
+  assert.equal((await server.send('?tag=DEMO&sort=mostLiked', { authorization: 'Bearer invalid' })).status, 401);
 });

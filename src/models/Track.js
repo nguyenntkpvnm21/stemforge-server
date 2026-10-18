@@ -114,5 +114,9 @@ const trackSchema = new mongoose.Schema(
 
 trackSchema.index({ artistId: 1, createdAt: -1 });
 trackSchema.index({ isPublic: 1, createdAt: -1, _id: -1 });
+trackSchema.index(
+  { isPublic: 1, likesCount: -1, createdAt: -1, _id: -1 },
+  { name: 'public_tracks_most_liked' }
+);
 
 module.exports = mongoose.model('Track', trackSchema);

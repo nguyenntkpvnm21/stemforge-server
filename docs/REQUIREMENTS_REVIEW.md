@@ -7,9 +7,18 @@ response wrappers. Updated [data-contract.md](data-contract.md) remains draft
 pending review of artist/likedByMe and missing-author behavior. The comparison
 below describes the released baseline unless explicitly updated; current local
 feature changes are recorded in PROJECT_STATUS.md.
-October 18 implementation update: title/genre/key/BPM discovery filters are
-implemented and verified locally on feature/track-search-filters; this is not a
-Render verification claim. Tags and most-liked sorting remain pending.
+October 18 implementation update: title/genre/key/BPM discovery filters were
+released through PR #36/#37 and passed 10/10 actual Render verification groups,
+followed by verified fixture cleanup and main/dev synchronization to 8691027.
+Tags and most-liked sorting were pending at that checkpoint. October 19:
+singular tag filtering and newest/mostLiked selection are implemented locally
+on feature/track-tags-sort; before the NUL fix, 399 automated tests and 11 corrected
+local HTTP/Atlas groups passed with safe cleanup. After the fix, 283 Track tests
+passed (including the 132-test validator/controller/routes subset), with 20 guest
+%00 HTTP rejections before DB lookups and four literal/textual-NUL controls passing.
+The separate 9-test index suite and Atlas index provisioning passed. These runs
+are not added into a new total. Tag/sort has not been checked on Render.
+See PROJECT_STATUS.md for actual results and index deployment limits.
 This review changes documentation only; it does not authorize implementation,
 change assignments, certify frontend completion, or create production data.
 
@@ -121,8 +130,8 @@ implementation in this tree, not proof that another repository has no work.
 | Upload multiple stems simultaneously - section 3 Module 3; section 6 Nguyen and week 4 | Partial; multi-stem client flow unverified, request design undecided | `src/middlewares/audio-upload.middleware.js:31` sets files=1 and `.single('audio')` at line 50. Existing POST `/api/uploads/audio` accepts one MP3/WAV/FLAC, max 20 MiB. The document requires simultaneous multi-file capability but does not explicitly require one HTTP request. Whether several single-file uploads satisfy the requirement needs group agreement and integration verification. |
 | Track/Stem CRUD - section 6 week 4 | Partial | `src/controllers/track.controller.js` supports Track create/detail/metadata update/delete. `src/validators/track.validator.js:21` excludes stems from updates. No stem-specific change/replace/delete API. Exact independent Stem CRUD semantics require agreement. |
 | Owner's personal library/dashboard - section 3 Module 3; section 6 Phuc UI and week 5 | Partial support; owner-list API missing | Owner-only update/delete and private detail exist, but `listTracks` at `src/controllers/track.controller.js:23` lists public Tracks only. No authenticated listing of all the owner's public/private Tracks. Dashboard UI completion needs client-repository verification. |
-| Search Genre/BPM range/Key/tags/title keyword - section 3 Module 4; section 6 Nguyen explicitly Genre/BPM/Key | Partial, locally verified October 18 | GET list supports q title substring, exact genre/key, inclusive bpmMin/bpmMax and AND/public-only filtering with consistent data/total and pagination. Query validation, Swagger and local HTTP/Atlas checks passed; not yet checked on Render. Tags and most-liked sorting remain pending. See PROJECT_STATUS.md for actual verification. |
-| Pagination and newest/most-liked ordering - section 3 Module 4; section 6 Nguyen | Partial | Pagination and deterministic newest-first ordering exist. No selectable likesCount ordering. |
+| Search Genre/BPM range/Key/tags/title keyword - section 3 Module 4; section 6 Nguyen explicitly Genre/BPM/Key | Implemented; tag follow-up locally verified October 19 | q/genre/key/BPM and AND/public-only filtering have actual Render evidence from October 18. Singular tag now matches one full array element literally/case-insensitively with the same data/total filter. Tag/sort follow-up passed 399 automated tests and 11 corrected local HTTP/Atlas groups; not yet checked on Render. Cleanup/main-account/index preservation verified; see PROJECT_STATUS.md. |
+| Pagination and newest/most-liked ordering - section 3 Module 4; section 6 Nguyen | Implemented; mostLiked locally verified October 19 | newest retains createdAt/_id DESC; mostLiked uses likesCount/createdAt/_id DESC. Actual local checks covered real Like counters, date/ID ties, pages and invariant totals. New compound index was intentionally added to the configured shared Atlas DB; exact keys/options, repeat no-op and unhinted IXSCAN without SORT verified. Existing data/indexes preserved; 9 focused utility tests passed. Not a load benchmark; Render tag/sort deployment/checks remain pending. |
 | Like/Unlike and count - section 3 Module 4; section 6 Nguyen | Present for REST | `src/services/track-like.service.js`, `src/models/TrackLike.js`, Like controller/routes. Earlier Render evidence covers permissions, idempotency, counters, concurrency, cascade, and cleanup. Socket broadcast is separate and missing. |
 | My Collection - section 3 Module 4 | Partial data foundation; listing missing | TrackLike stores membership and individual Track Like state is queryable, but no API lists a user's liked Tracks. Exact meaning of collection and its individual task split are unspecified; confirm whether it is the Like-derived collection rather than a separate saved list. |
 | Synchronized mixer, waveform, volume/mute/solo, seek - section 3 Module 2; section 6 Phuc | Needs verification in frontend | Backend returns ordered stems with names/URLs/duration. This Express repository cannot establish whether Wavesurfer, React controls, AudioContext user gesture handling, or sample/real-data synchronization work. |

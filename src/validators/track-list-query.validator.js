@@ -1,5 +1,9 @@
-const allowedParameters = new Set(['page', 'limit', 'q', 'genre', 'key', 'bpmMin', 'bpmMax']);
-const textFields = { q: 'title', genre: 'genre', key: 'key' };
+const allowedParameters = new Set(['page', 'limit', 'q', 'genre', 'key', 'bpmMin', 'bpmMax', 'tag', 'sort']);
+const textFields = { q: 'title', genre: 'genre', key: 'key', tag: 'tags' };
+const sortOrders = {
+  newest: { createdAt: -1, _id: -1 },
+  mostLiked: { likesCount: -1, createdAt: -1, _id: -1 },
+};
 
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -11,6 +15,11 @@ function parseTrackListFilters(query) {
     return { error: 'Query contains unsupported Track list parameters.' };
   }
 
+  const sortName = query.sort === undefined ? 'newest' : query.sort;
+  if (typeof sortName !== 'string' || !Object.hasOwn(sortOrders, sortName)) {
+    return { error: 'sort must be newest or mostLiked.' };
+  }
+
   // Construct every MongoDB field/operator here; never forward query objects.
   const filter = { isPublic: true };
   for (const [parameter, field] of Object.entries(textFields)) {
@@ -18,6 +27,9 @@ function parseTrackListFilters(query) {
     if (value === undefined) continue;
     if (typeof value !== 'string' || value.length > 100 || value.trim().length === 0) {
       return { error: parameter + ' must be a non-empty string of at most 100 characters.' };
+    }
+    if (value.includes('\u0000')) {
+      return { error: parameter + ' must not contain U+0000 (NUL).' };
     }
     const literal = escapeRegex(value.trim());
     filter[field] = { $regex: parameter === 'q' ? literal : '^' + literal + '$', $options: 'i' };
@@ -41,7 +53,7 @@ function parseTrackListFilters(query) {
     if (bounds.bpmMin !== undefined) filter.bpm.$gte = bounds.bpmMin;
     if (bounds.bpmMax !== undefined) filter.bpm.$lte = bounds.bpmMax;
   }
-  return { filter };
+  return { filter, sort: { ...sortOrders[sortName] } };
 }
 
 module.exports = { parseTrackListFilters };
