@@ -21,6 +21,15 @@ function makeStems(count) {
   }));
 }
 
+test('declares the additive most-liked public index and retains existing indexes', () => {
+  const indexes = Track.schema.indexes();
+  assert.ok(indexes.some(([keys]) => JSON.stringify(keys) === JSON.stringify({ artistId: 1, createdAt: -1 })));
+  assert.ok(indexes.some(([keys]) => JSON.stringify(keys) === JSON.stringify({ isPublic: 1, createdAt: -1, _id: -1 })));
+  const mostLiked = indexes.find(([, options]) => options.name === 'public_tracks_most_liked');
+  assert.deepEqual(mostLiked[0], { isPublic: 1, likesCount: -1, createdAt: -1, _id: -1 });
+  assert.notEqual(mostLiked[1].unique, true);
+});
+
 test('accepts the contract sample and preserves its public JSON shape', async () => {
   const track = new Track({
     ...structuredClone(sample),

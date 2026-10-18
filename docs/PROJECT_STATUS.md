@@ -1,11 +1,12 @@
 # StemForge project status
 
-Last updated: October 18, 2026 (Asia/Saigon).
+Last updated: October 19, 2026 (Asia/Saigon).
 
 ## Implemented functionality
 
 Authentication (register/login/me, JWT, shared authentication rate limit), public
-Track search/filtering and pagination, visibility-aware detail, authenticated creation, owner-only
+Track metadata/tag filtering, newest/most-liked ordering and pagination,
+visibility-aware detail, authenticated creation, owner-only
 metadata update/deletion, audio upload, and transactional Like/Unlike APIs.
 
 Like endpoints are authenticated GET/PUT/DELETE `/api/tracks/:trackId/like` with
@@ -17,6 +18,163 @@ the same transaction. Startup awaits the unique Track/user Like index.
 The Track/Stem contract remains a draft awaiting Phuc's review. Audio/stem
 replacement and orphan Cloudinary asset cleanup remain pending. Cloudinary audio
 URLs use public delivery; Track visibility does not protect those URLs.
+
+## Local tag and sort feature (October 19, 2026)
+
+Current branch: `feature/track-tags-sort`, created from synchronized dev `8691027`.
+Four existing Render-verification documents were preserved and committed
+separately as **a3348d4**, `docs: record Track search deployment verification`,
+before feature edits. Handoff files and ignored reports remain preserved. Tag/sort
+is prepared for feature -> dev -> main PRs; it is **not deployed or tested on Render**.
+The overall Track/Stem contract remains **Draft**, not approved.
+
+### Behavior and compatibility
+
+- Singular tag matches one full element of tags using escaped literal regex,
+  case-insensitive and accent-sensitive. It is trimmed, nonempty, and at most
+  100 characters before trimming, exactly like genre/key. It does not match
+  substrings or combine separate array elements. Plural tags is still rejected.
+- sort accepts only exact case-sensitive newest or mostLiked. Omission means
+  newest: createdAt DESC, _id DESC. mostLiked: likesCount DESC, createdAt DESC,
+  _id DESC. Blank, padded, repeated, nested/operator and unknown values return
+  400. Sort clauses are selected from predefined keys/directions.
+- Tag combines with q/genre/key/BPM and isPublic=true using AND. One filter is
+  shared by data and total; sort is separate and does not change total. Existing
+  pagination, wrappers, public-only visibility (also for owners), optional
+  authentication, no-store, artist/likedByMe and Like/write behavior are retained.
+- No data fields, dependency or response schema changed; the Track model adds
+  one index declaration. Ordering is deterministic for fixed data. Changing Like
+  counts between requests can move records between offset-based pages.
+
+### Index assessment
+
+Declared nonunique index `public_tracks_most_liked`:
+`{isPublic:1, likesCount:-1, createdAt:-1, _id:-1}`. Existing owner/newest indexes
+are retained. The public equality prefix and complete ranking keys support the
+new sort; combined metadata/range filters can still require filtering. Like
+updates incur index-maintenance/storage cost. No tag multikey/collation index is
+added because case-insensitive regex is not collation-aware. Sources:
+[compound sort](https://www.mongodb.com/docs/manual/core/indexes/index-types/index-compound/sort-order/),
+[regex index limitations](https://www.mongodb.com/docs/manual/reference/operator/query/regex/).
+
+The earlier HTTP fixture run found **the new index absent**, with a blocking SORT.
+That run set autoIndex=false/autoCreate=false, performed no DDL, and preserved the
+index catalog. Its evidence remains unchanged. The subsequent authorized index
+provisioning below deliberately adds persistent database metadata.
+
+### Explicit index provisioning (October 19, 2026)
+
+Code inspection: src/config/database.js passes credentials without overriding
+autoIndex/autoCreate. Installed Mongoose defaults both to true and Model.init()
+ensures indexes when enabled. src/server.js imports app/models before connecting
+and explicitly waits only for TrackLike.init(), not Track.init(); HTTP readiness
+does not prove that the new Track index is ready. No startup/application behavior
+was changed for provisioning.
+
+Reusable script: scripts/ensure-track-most-liked-index.js. Default invocation is
+read-only inspection; --apply creates only the exact named schema declaration.
+Automatic DDL is disabled in the script. It honors DNS_SERVERS, loads credentials
+privately, requires the configured database name to match, verifies project
+collections/protected account, refuses name/key/options or equivalent-key alias
+conflicts, compares data and existing-index fingerprints, and disconnects in
+finally. It does not use syncIndexes, dropIndex, data writes or cleanup deletion.
+See README Discovery indexes for deployment commands and conflict handling.
+
+**Actual shared-project Atlas results, 01:02:04-01:02:23 Asia/Saigon**
+(October 18, 18:02:04-18:02:23 UTC):
+
+| Operation | Actual result |
+| --- | --- |
+| Read-only preflight | Configured DB identity, three project collections and protected main account verified. Index absent; Track catalog stayed at 3. Unhinted public-only mostLiked plan: SORT -> FETCH -> IXSCAN on isPublic_1_createdAt_-1__id_-1. |
+| First --apply | Created exactly public_tracks_most_liked; Track catalog 3 -> 4. Actual ordered keys: isPublic:1, likesCount:-1, createdAt:-1, _id:-1; name matches, v=2. No unique, sparse, partial, hidden, TTL or collation override. |
+| Repeat --apply | Index already valid; created=false, catalog 4 -> 4, no duplicate/additional index. |
+| Actual explain after both apply runs | find({isPublic:true}), sort likesCount/createdAt/_id DESC, limit 12, queryPlanner, no hint. Winning plan LIMIT -> FETCH -> IXSCAN on public_tracks_most_liked, with no SORT stage. No application hint added. |
+| Preservation | All preexisting User/Track/Like data fingerprints and all old indexes matched in all three runs. Only the intended index was added in the first apply; no other catalog changes. Main account intact; counts remained 1 User, 0 Tracks, 0 Likes. |
+| Resources/evidence | No fixture data, assets, fault injection or temporary harness created. All three runs recorded dbDisconnected=true. Reports remain ignored/local and contain no credentials or copies of User records. |
+
+Local report markers, retained without modifying earlier HTTP evidence:
+sf-context-20261018180204-38693eaa (inspect),
+sf-context-20261018180214-96dcee24 (create),
+sf-context-20261018180221-a89ea99c (repeat).
+The **index addition is intentional and retained**, with existing data/indexes
+preserved. This verifies the actual configured shared database, not another
+environment. Empty Track data means this is not a performance/load benchmark;
+combined metadata/range filters can choose other plans. Tag/sort deployment and
+Render verification remain pending; the contract remains Draft.
+
+**9/9 focused utility tests passed**, plus node --check and git diff --check:
+read-only absence, exact creation, repeat no-op, key-order/direction conflict,
+semantic options conflict, equivalent-key alias, schema drift, server defaults,
+DDL failure and old-index preservation. No source/startup changes were made in
+this index follow-up, so the existing 399 application/recovery tests were not
+rerun. The reusable script and its tests are the only new feature files here.
+
+### Automated and real HTTP verification
+
+Before the NUL follow-up, **399/399 automated tests passed:** Tracks 263,
+Likes 51, uploads 59, recovery 26.
+Added 27 tests for literal tag/element matching, combined filters, query limits,
+sort allowlisting/defaults, total/pagination/viewer preservation and additive
+index declaration. The HTTP mock now simulates declared ordering; existing
+expectations were corrected to respect descending _id for tied timestamps.
+
+NUL review follow-up: q/genre/key/tag now reject actual U+0000 with HTTP 400
+before list/count/enrichment queries; the character is not removed. Literal
+escaping, trimming and case-insensitivity are unchanged, including acceptance of
+the textual backslash-u0000 sequence and literal percent-00 text. Added 20 tests
+across validator/controller/routes. The focused suite passed **132/132** and
+the full npm run test:tracks suite passed **283/283**. Through real loopback HTTP,
+20 guest requests containing encoded %00 (alone, leading, embedded, trailing or
+with surrounding spaces) returned the exact validation message, with zero calls
+to Track.find/countDocuments, User.find/findById or TrackLike.find. Four HTTP
+controls with ordinary regex metacharacters/textual NUL representations returned
+200 and forwarded the expected escaped filters. Database methods were mocked to
+prove the boundary; no Atlas/Render access or fixture data was needed. Existing
+authentication order remains unchanged. Swagger documents NUL rejection; this
+follow-up is included in feature/track-tags-sort. Earlier Atlas/HTTP reports remain historical.
+
+First local attempt: **October 19, 00:33:16-00:33:34 Asia/Saigon**, marker
+`sf-context-20261018173316-87495a01` (UTC marker date is October 18). Nine HTTP
+behavior groups passed, but the command-observer group failed with
+`Actual sort mismatch`: the harness JSON-stringified the driver's Map as {}.
+Driver source/formatSort inspection confirmed the representation issue. Index
+assessment had not run. This report remains failed (10/11 groups completed);
+cleanup had zero remaining fixtures, all preexisting data/main account and Track
+indexes matched, and DB disconnected. No application fix was needed.
+
+Corrected only the disposable harness's Map observation, then reran everything
+with a fresh marker **sf-context-20261018173540-9a87cc10**:
+**October 19, 00:35:40-00:35:56 Asia/Saigon** (October 18, 17:35:40-17:35:56 UTC).
+The current app used an ephemeral loopback HTTP listener with real Atlas and
+private environment configuration, honoring DNS_SERVERS. No Render requests,
+Cloudinary assets or production fault injection were used.
+
+**11/11 groups passed, 90 real HTTP responses:**
+
+| Check | Actual result |
+| --- | --- |
+| Fixture setup | Two marked accounts and ten HTTP-created Tracks; nine real Like memberships, controlled fixture timestamps and one popular Track switched private. No fabricated counters. |
+| Tag matching | Regex metacharacters were literal; mixed case/trim passed. Near values and split elements did not match; 100-character tag accepted; operator-looking string treated literally. |
+| Combined filters | Tag with title, genre/key and inclusive BPM bounds returned five expected public Tracks; conflicting predicates returned empty data and zero total. |
+| Default/newest | Omitted and explicit newest returned identical timestamp/_id-descending order and pagination. |
+| MostLiked/ties | Real count=2 outranked count=1/0; equal counts used createdAt, and equal count/time used _id. |
+| Pagination/total | Both modes returned total=6/totalPages=3 for the same tag filter (limit=2). Three pages had exact nonoverlapping IDs; beyond-last page was empty with total unchanged. |
+| Privacy/auth | Guest/owner/other lists in both modes excluded the popular private fixture. Matching its title returned zero even to owner. Detail remained owner 200 and other-user 404. |
+| Response context | Public artist allowlist and independent viewer Like state stayed correct, including paged results. Unlike changed ranking and current viewer state while total and another account's membership stayed correct. |
+| Invalid queries | All 21 invalid tag/sort/other-query cases returned 400; invalid token returned 401 for each sort. |
+| Commands/Swagger | Real find/count filters matched for both modes; normalized sort Maps had the declared order and were absent from filters. Swagger exposed nine supported parameters and exact sort enum/default. |
+| Index assessment | New declaration present in code; physical index absent on shared Atlas, blocking SORT observed, automatic DDL disabled, old index catalog preserved. |
+
+Both generated JSON reports remain ignored/local, without tokens, passwords or
+copies of preexisting User documents; this summary is self-contained on GitHub.
+Cleanup was restricted to manifest IDs, marker/description/title and owner or
+exact marked account identity. Track and fixture-Like removal used one session
+sequentially per transaction and refused foreign/unmarked records. **Zero fixture
+Users, Tracks or Likes remain**. Before/after fingerprints for all preexisting
+User/Track/Like records and the protected main account matched, as did the Track
+index catalog. HTTP listener closed and dbDisconnected=true recorded in finally.
+The spent harness was removed. The feature release remains pending through
+feature -> dev -> main PRs; no automatic merge or deployment is performed.
 
 ## Released search/filters feature (October 18, 2026)
 
@@ -93,9 +251,9 @@ origin/main/dev all equal `869102741d4453253deabbdd4e1939f5df6ec79c`.
 
 All 13 handoff/local-report files fingerprinted before synchronization retained
 their hashes, including this run's report. Current branch: **dev**. Documentation
-updates for this verification remain local and uncommitted. The contract remains
-**Draft** awaiting Phuc's final review. Tags and most-liked ordering remain next
-steps.
+updates for that verification were subsequently committed as a3348d4 before the
+tag/sort work above. The contract remains **Draft** awaiting Phuc's final review.
+At that release checkpoint, tags and most-liked ordering were still next steps.
 
 ## Local search/filters feature (October 18, 2026)
 

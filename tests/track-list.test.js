@@ -167,7 +167,20 @@ test('uses one AND filter for data and total while retaining sort, pagination an
   assert.equal(next.mock.calls.length, 0);
 });
 
-for (const query of [{ q: '' }, { genre: { $ne: '' } }, { bpmMin: '140', bpmMax: '120' }, { isPublic: 'false' }]) {
+for (const field of ['q', 'genre', 'key', 'tag']) {
+  test(field + ' containing NUL returns 400 without data/count/context queries', async (t) => {
+    const { find, count, enrich } = mockDatabase(t);
+    const res = makeResponse();
+    const next = t.mock.fn();
+    await listTracks({ query: { [field]: 'valid\u0000text' } }, res, next);
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.body, { message: field + ' must not contain U+0000 (NUL).' });
+    for (const operation of [find, count, enrich, next]) assert.equal(operation.mock.calls.length, 0);
+  });
+}
+
+for (const query of [{ q: '' }, { genre: { $ne: '' } }, { bpmMin: '140', bpmMax: '120' }, { isPublic: 'false' },
+  { tag: ['Jazz', 'Rock'] }, { tag: { $ne: '' } }, { sort: ['newest', 'mostLiked'] }, { sort: 'likesCount' }]) {
   test('invalid filters return 400 before any database reads: ' + JSON.stringify(query), async (t) => {
     const { find, count, enrich } = mockDatabase(t);
     const res = makeResponse();
@@ -178,6 +191,26 @@ for (const query of [{ q: '' }, { genre: { $ne: '' } }, { bpmMin: '140', bpmMax:
     assert.equal(find.mock.calls.length, 0);
     assert.equal(count.mock.calls.length, 0);
     assert.equal(enrich.mock.calls.length, 0);
+    assert.equal(next.mock.calls.length, 0);
+  });
+}
+
+for (const sort of [undefined, 'newest', 'mostLiked']) {
+  test('tag filter and sort=' + sort + ' retain total, pagination and viewer enrichment', async (t) => {
+    const tracks = [structuredClone(sample)];
+    const { calls, enrich } = mockDatabase(t, { tracks, total: 5 });
+    const res = makeResponse();
+    const next = t.mock.fn();
+    const user = { _id: sample.artistId };
+    await listTracks({ query: { tag: ' Demo.* ', sort, page: '2', limit: '2' }, user }, res, next);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(calls.findFilter, { isPublic: true, tags: { $regex: '^Demo\\.\\*$', $options: 'i' } });
+    assert.equal(calls.findFilter, calls.countFilter);
+    assert.equal(Object.hasOwn(calls.findFilter, 'sort'), false);
+    assert.deepEqual(calls.sort, sort === 'mostLiked' ? { likesCount: -1, createdAt: -1, _id: -1 } : { createdAt: -1, _id: -1 });
+    assert.deepEqual(res.body.pagination, { page: 2, limit: 2, total: 5, totalPages: 3 });
+    assert.equal(calls.skip, 2);
+    assert.deepEqual(enrich.mock.calls[0].arguments, [tracks, user._id]);
     assert.equal(next.mock.calls.length, 0);
   });
 }

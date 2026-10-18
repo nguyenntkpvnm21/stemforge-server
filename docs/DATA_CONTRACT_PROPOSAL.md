@@ -1,6 +1,6 @@
 # Data contract proposal for discussion with Phuc
 
-**Status: Draft - not approved.** Updated October 18, 2026. Released backend:
+**Status: Draft - not approved.** Updated October 19, 2026. Released backend:
 `8691027`; artist/likedByMe previously passed real Render HTTP verification
 (12/12 groups), and search/filtering subsequently passed 10/10 Render groups.
 Fixture cleanup and main-account preservation were verified. Deployment/testing
@@ -230,7 +230,33 @@ Subsequent real Render verification passed 10/10 groups with cleanup and
 preexisting-data/main-account preservation verified; main/dev now share 8691027.
 Nguyen confirmed that Live commit in Render Dashboard. See the
 [Render search/filter results](PROJECT_STATUS.md#actual-render-searchfilter-verification-and-cleanup-october-18-2026).
-Tags and most-liked
-ordering remain next steps. This task does not depend on unresolved roles,
+Tag/most-liked follow-up is now implemented locally as described below. This
+task does not depend on unresolved roles,
 collection storage, stem-edit, or download decisions and does not approve the
 overall Draft contract.
+
+## Local tag and sort follow-up (October 19)
+
+Nguyen authorized extending the existing query allowlist with singular tag and
+sort. tag is trimmed/nonempty/max 100 characters before trimming and matches a
+whole tags element literally, case-insensitively. It combines with all metadata
+predicates using AND. sort accepts exactly newest (default) or mostLiked, changes
+only order, and is not part of data/total filters. newest keeps createdAt/_id DESC;
+mostLiked uses likesCount/createdAt/_id DESC. Query validation, authentication,
+public-only access, pagination and artist/likedByMe response semantics remain.
+
+Before the NUL fix, 399 automated tests and a corrected 11-group local HTTP/Atlas run passed,
+with safe cleanup and preservation of existing data/main account/indexes. The
+HTTP fixture test did not build the new ranking index. Subsequent authorized
+additive provisioning verified its exact keys/options on the configured shared
+Atlas database: 3 -> 4 Track indexes, repeat apply 4 -> 4, and unhinted explain
+using the new index without SORT. Existing data/indexes were preserved and 9
+focused utility tests passed. After the NUL fix, 283 Track tests passed, including
+the 132-test validator/controller/routes subset. Loopback HTTP with DB mocks
+rejected 20 guest %00 requests before database lookups; four literal/textual-NUL
+controls passed. These runs are separate, with no combined post-fix total claimed.
+This is not a load benchmark; Render tag/sort
+deployment/verification remains pending. See
+[current status](PROJECT_STATUS.md#local-tag-and-sort-feature-october-19-2026).
+This feature and its query documentation do not approve the overall Draft
+contract or resolve the open collection/stem/download decisions.

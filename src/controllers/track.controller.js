@@ -28,7 +28,7 @@ function parsePositiveInteger(value, defaultValue) {
 }
 
 async function listTracks(req, res, next) {
-  const { filter, error } = parseTrackListFilters(req.query);
+  const { filter, sort, error } = parseTrackListFilters(req.query);
   if (error) {
     return res.status(400).json({ message: error });
   }
@@ -59,7 +59,7 @@ async function listTracks(req, res, next) {
   try {
     const [tracks, total] = await Promise.all([
       Track.find(filter)
-        .sort({ createdAt: -1, _id: -1 })
+        .sort(sort)
         .skip(skip)
         .limit(limit)
         .exec(),

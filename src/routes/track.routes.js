@@ -209,16 +209,20 @@ router.use((req, res, next) => {
  *       optional; a supplied header must be a valid Bearer token. Each Track
  *       includes public artist information and personalized likedByMe (false
  *       for guests). The list remains public-only for authenticated users.
- *       Optional q, genre, key, bpmMin, and bpmMax combine with AND. q is a
+ *       Optional q, genre, key, bpmMin, bpmMax, and tag combine with AND. q is a
  *       literal title substring; genre and key are full-value literal matches.
+ *       tag matches one full element of tags literally, ignoring case.
  *       Text matches ignore case, preserve accent distinctions, and trim query
  *       whitespace. Text values must be nonempty and at most 100 characters
- *       before trimming. BPM bounds are inclusive positive finite decimals;
+ *       before trimming. U+0000 (NUL) in q, genre, key, or tag returns 400;
+ *       it is never silently removed. BPM bounds are inclusive positive finite decimals;
  *       either bound may be omitted, and bpmMin must not exceed bpmMax.
- *       Data and total use the same filters; default ordering is unchanged.
+ *       Data and total use the same filters. sort=newest is the default ordering
+ *       described above; sort=mostLiked orders by likesCount descending, then
+ *       createdAt descending, then _id descending. sort affects only order,
+ *       never the filter or total. Sort values are exact and case-sensitive.
  *       Each parameter accepts one scalar value. Repeated, nested/operator,
- *       empty, or unsupported parameters return 400. Tags and selectable
- *       sorting are not supported yet.
+ *       empty, or unsupported parameters return 400. Use singular tag, not tags.
  *       The Track/Stem contract is currently a draft.
  *     security:
  *       - {}
@@ -289,6 +293,23 @@ router.use((req, res, next) => {
  *           maxLength: 32
  *           pattern: '^\d+(\.\d+)?$'
  *           example: '140'
+ *       - in: query
+ *         name: tag
+ *         required: false
+ *         description: Case-insensitive full-value literal match against one tags array element. Trimmed, nonempty; regex metacharacters are literal. No cross-element or substring matching.
+ *         schema:
+ *           type: string
+ *           minLength: 1
+ *           maxLength: 100
+ *           example: electronic
+ *       - in: query
+ *         name: sort
+ *         required: false
+ *         description: newest uses createdAt DESC then _id DESC. mostLiked uses likesCount DESC then createdAt DESC then _id DESC. Exact case-sensitive values; changes order only, not total.
+ *         schema:
+ *           type: string
+ *           enum: [newest, mostLiked]
+ *           default: newest
  *     responses:
  *       '200':
  *         description: Public track list and pagination.
@@ -310,7 +331,7 @@ router.use((req, res, next) => {
  *                 total: 0
  *                 totalPages: 0
  *       '400':
- *         description: Invalid, empty, repeated, nested/operator, or unsupported query parameters; inverted BPM range or unsafe pagination offset.
+ *         description: Invalid, empty, repeated, nested/operator, unsupported, or NUL-containing text query parameters; inverted BPM range or unsafe pagination offset.
  *         content:
  *           application/json:
  *             schema:
@@ -331,6 +352,9 @@ router.use((req, res, next) => {
  *               unsupportedQuery:
  *                 value:
  *                   message: Query contains unsupported Track list parameters.
+ *               invalidSort:
+ *                 value:
+ *                   message: sort must be newest or mostLiked.
  *       '401':
  *         description: A supplied Authorization header or token is invalid.
  *         content:
