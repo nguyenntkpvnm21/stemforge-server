@@ -5,7 +5,7 @@ Last updated: October 18, 2026 (Asia/Saigon).
 ## Implemented functionality
 
 Authentication (register/login/me, JWT, shared authentication rate limit), public
-Track pagination, visibility-aware detail, authenticated creation, owner-only
+Track search/filtering and pagination, visibility-aware detail, authenticated creation, owner-only
 metadata update/deletion, audio upload, and transactional Like/Unlike APIs.
 
 Like endpoints are authenticated GET/PUT/DELETE `/api/tracks/:trackId/like` with
@@ -18,14 +18,95 @@ The Track/Stem contract remains a draft awaiting Phuc's review. Audio/stem
 replacement and orphan Cloudinary asset cleanup remain pending. Cloudinary audio
 URLs use public delivery; Track visibility does not protect those URLs.
 
+## Released search/filters feature (October 18, 2026)
+
+**Actual Render search/filter verification passed 10/10 groups**, followed by
+verified fixture cleanup and main/dev synchronization. Feature commit `3dc0e26`
+was merged through PR #36 (feature -> dev) and PR #37 (dev -> main).
+The release/Live commit is **`869102741d4453253deabbdd4e1939f5df6ec79c`**.
+Nguyen explicitly confirmed Live `8691027` in Render Dashboard during this check.
+The API health response does not expose a build SHA; public GitHub deployment
+metadata supplied no SHA attestation, so the Live SHA is attributed to that
+Dashboard confirmation rather than inferred from health or branch state alone.
+
+### Actual Render search/filter verification and cleanup (October 18, 2026)
+
+Target: https://stemforge-server.onrender.com. Executed
+**20:59:58-21:00:19 Asia/Saigon** (13:59:58-14:00:19 UTC), marker
+`sf-context-20261018135958-6694a6ec`. All feature requests used the real Render
+HTTPS API. Two disposable accounts registered and logged in through Render;
+their tokens were validated with /auth/me and exact fixture identities matched
+against privately configured Atlas before Track creation. Tokens/passwords
+stayed in memory; no local JWT signing secret or application listener was used.
+Read-only preflight verified health, the deployed Swagger's seven parameters,
+400 for empty q, and 401 for an invalid supplied token before fixtures were made.
+
+Created **two marked accounts and 14 Track fixtures: 13 public, one private**,
+all through Render POST using placeholder HTTPS audio URLs. Only the marked
+accounts' avatar fields were adjusted to exercise HTTPS/null artist avatars.
+Three exact marked Tracks received the same fixture timestamp to verify the
+secondary _id ordering. No existing records were modified.
+
+**10/10 groups passed, zero failed or blocked:**
+
+| Check | Actual Render result |
+| --- | --- |
+| Authentication/setup | Registration, login, /auth/me, exact Atlas identity and all 14 POST responses passed. Computed fields were absent from raw stored fixtures. |
+| No filters/defaults | Default page=1/limit=12 and page 2 matched the actual public DB count and createdAt-desc/_id-desc order. The 13 public fixtures crossed the default page boundary; three tied timestamps exercised _id ordering. |
+| q | Case-insensitive substrings and query trimming matched the expected IDs. Brackets, plus, parentheses, anchors, pipe and backslash were literal; wildcard-looking text did not expand matches. Accent distinctions were preserved. |
+| genre/key | Case-insensitive, trimmed full-value matches for Electro (Live), A+ and URL-encoded C# passed. Similar longer genres/keys were excluded. |
+| BPM | One-sided and two-sided ranges included exact boundaries. Fractional bounds, equal 130.5/130.50, and exact 80.25 matched correctly. |
+| AND/data/total/pages | Combined title/genre/key/BPM returned exactly two expected IDs and total=2. Pages 1/2 (limit=1), beyond-last page, and conflicting conditions with data=[]/total=0/totalPages=0 passed. |
+| Public/private | Guest, owner and other-account lists returned all 13 matching public fixtures and excluded the private fixture. Searching its exact title returned zero even for owner. Detail remained owner 200 and guest/other user 404. |
+| artist/likedByMe | Both authors exposed exactly _id/username/avatarUrl, including HTTPS/null avatars. Guest false, each account's independent Like membership, combined-filter membership and Unlike state passed. |
+| Invalid queries/auth | All 30 empty/overlong/repeated/object/operator/unsupported/bad-BPM/bad-pagination cases returned 400. Invalid Bearer and malformed Basic authorization returned 401. Tags/Like sorting remain unsupported. |
+| Deployed Swagger | Exact parameter set, text/BPM limits, inclusive/AND/literal descriptions, response-only context fields, and 400/401 documentation matched. |
+
+The ignored local JSON records **92 HTTP responses** during the fixture lifecycle,
+plus four read-only preflight requests outside that counter. Verification has
+expected/completedGroups=10 and status=passed; renderTested=true, cleanup and
+preservation passed, and dbDisconnected=true. This versioned summary is readable
+without the generated report; no JSON report is added to Git.
+
+Cleanup removed only exact manifest Track IDs with matching title, marker,
+description and owner IDs, and Likes restricted to fixture Track/account IDs.
+Track/Like removal used the same transaction session sequentially. Foreign or
+unmarked identities were refused; only the two exact marked accounts were
+deleted after checking they owned no remaining Tracks/Likes. **Zero fixture Users,
+Tracks or Likes remain.** Before/after fingerprints for every preexisting
+User/Track/Like document and the protected main account matched. DB disconnected
+in finally; the spent temporary harness was deleted. No Cloudinary assets,
+secret files, application changes, production fault injection, tags or Like-sort
+implementation were involved. Actual filter effects and data/total were verified
+over HTTP; internal find/count command monitoring remains the earlier local
+evidence. The previous 372 automated tests were not rerun for deployment/docs
+verification because source, tests and dependencies were unchanged.
+
+### Main/dev synchronization after search verification (October 18, 2026)
+
+Tracked working tree was clean, and the tested feature tree matched released
+main. After Render checks and cleanup, executed: switch main -> pull --ff-only
+origin main -> switch dev -> pull --ff-only origin dev -> merge --ff-only main ->
+push origin dev. All steps succeeded without conflicts, reset, force push or a
+new merge commit. Remote refs were independently verified: local main/dev and
+origin/main/dev all equal `869102741d4453253deabbdd4e1939f5df6ec79c`.
+
+All 13 handoff/local-report files fingerprinted before synchronization retained
+their hashes, including this run's report. Current branch: **dev**. Documentation
+updates for this verification remain local and uncommitted. The contract remains
+**Draft** awaiting Phuc's final review. Tags and most-liked ordering remain next
+steps.
+
 ## Local search/filters feature (October 18, 2026)
+
+Historical local verification checkpoint; the later Render results are above.
 
 Branch: `feature/track-search-filters`, created from dev `d5501f1`. Existing
 Render-verification documentation was preserved and committed separately as
 `aa2e469` with message `docs: record Track response context deployment verification`.
 Untracked handoff files and ignored reports were preserved. Search/filter code
-is implemented and verified locally; Nguyen authorized its reviewed 11-file
-commit and push. **Search/filtering is not deployed or checked on Render.**
+was implemented and verified locally before its reviewed 11-file commit/push.
+Search/filtering had not yet been deployed or checked on Render at that checkpoint.
 The Track/Stem contract remains Draft pending Phuc's final review.
 
 GET `/api/tracks` now supports:
@@ -95,7 +176,7 @@ deleted; no secret/token or raw preexisting-user document was saved.
 
 Swagger, README, proposal, and requirements coverage were updated. Static diff
 checks passed. Deployment-verification documentation was committed separately;
-the search/filter scope is reviewed for the authorized feature commit/push.
+the search/filter scope was then committed/pushed as 3dc0e26.
 Application tests were not rerun during commit preparation because code was
 unchanged; generated JSON reports and handoff artifacts remain outside the commit.
 

@@ -1,8 +1,9 @@
 # Data contract proposal for discussion with Phuc
 
 **Status: Draft - not approved.** Updated October 18, 2026. Released backend:
-`d5501f1`; artist/likedByMe passed real Render HTTP verification (12/12 groups)
-with fixture cleanup and main-account preservation verified. Deployment/testing
+`8691027`; artist/likedByMe previously passed real Render HTTP verification
+(12/12 groups), and search/filtering subsequently passed 10/10 Render groups.
+Fixture cleanup and main-account preservation were verified. Deployment/testing
 does not constitute Phuc's approval of the updated contract.
 Read `docs/data-contract.md` and `.json` from branch `docs/data-contract` at
 `9e041cd` with `git show`; no checkout or replacement of uncommitted files.
@@ -210,7 +211,7 @@ Module 4 mentions Like and My Collection together but does not equate them or
 define an independent collection. Pagination and API details above are current
 code behavior, not invented requirements from the specification.
 
-## Low-dependency backend task: local search/filters
+## Low-dependency backend task: released search/filters
 
 Nguyen subsequently authorized this task. Implemented on
 `feature/track-search-filters`: q is a case-insensitive literal title
@@ -225,8 +226,11 @@ Existing pagination, ordering, artist/likedByMe and authentication remain.
 
 372 automated tests and 10 real local HTTP/Atlas groups passed; fixture cleanup,
 preservation of existing data/main account, and DB disconnection were verified.
-See [current status](PROJECT_STATUS.md#local-searchfilters-feature-october-18-2026).
-Search/filtering has not been deployed or tested on Render. Tags and most-liked
+Subsequent real Render verification passed 10/10 groups with cleanup and
+preexisting-data/main-account preservation verified; main/dev now share 8691027.
+Nguyen confirmed that Live commit in Render Dashboard. See the
+[Render search/filter results](PROJECT_STATUS.md#actual-render-searchfilter-verification-and-cleanup-october-18-2026).
+Tags and most-liked
 ordering remain next steps. This task does not depend on unresolved roles,
 collection storage, stem-edit, or download decisions and does not approve the
 overall Draft contract.

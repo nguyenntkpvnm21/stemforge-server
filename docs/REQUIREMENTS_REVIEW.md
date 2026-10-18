@@ -7,9 +7,10 @@ response wrappers. Updated [data-contract.md](data-contract.md) remains draft
 pending review of artist/likedByMe and missing-author behavior. The comparison
 below describes the released baseline unless explicitly updated; current local
 feature changes are recorded in PROJECT_STATUS.md.
-October 18 implementation update: title/genre/key/BPM discovery filters are
-implemented and verified locally on feature/track-search-filters; this is not a
-Render verification claim. Tags and most-liked sorting remain pending.
+October 18 implementation update: title/genre/key/BPM discovery filters were
+released through PR #36/#37 and passed 10/10 actual Render verification groups,
+followed by verified fixture cleanup and main/dev synchronization to 8691027.
+Tags and most-liked sorting remain pending; see PROJECT_STATUS.md for results.
 This review changes documentation only; it does not authorize implementation,
 change assignments, certify frontend completion, or create production data.
 
@@ -121,7 +122,7 @@ implementation in this tree, not proof that another repository has no work.
 | Upload multiple stems simultaneously - section 3 Module 3; section 6 Nguyen and week 4 | Partial; multi-stem client flow unverified, request design undecided | `src/middlewares/audio-upload.middleware.js:31` sets files=1 and `.single('audio')` at line 50. Existing POST `/api/uploads/audio` accepts one MP3/WAV/FLAC, max 20 MiB. The document requires simultaneous multi-file capability but does not explicitly require one HTTP request. Whether several single-file uploads satisfy the requirement needs group agreement and integration verification. |
 | Track/Stem CRUD - section 6 week 4 | Partial | `src/controllers/track.controller.js` supports Track create/detail/metadata update/delete. `src/validators/track.validator.js:21` excludes stems from updates. No stem-specific change/replace/delete API. Exact independent Stem CRUD semantics require agreement. |
 | Owner's personal library/dashboard - section 3 Module 3; section 6 Phuc UI and week 5 | Partial support; owner-list API missing | Owner-only update/delete and private detail exist, but `listTracks` at `src/controllers/track.controller.js:23` lists public Tracks only. No authenticated listing of all the owner's public/private Tracks. Dashboard UI completion needs client-repository verification. |
-| Search Genre/BPM range/Key/tags/title keyword - section 3 Module 4; section 6 Nguyen explicitly Genre/BPM/Key | Partial, locally verified October 18 | GET list supports q title substring, exact genre/key, inclusive bpmMin/bpmMax and AND/public-only filtering with consistent data/total and pagination. Query validation, Swagger and local HTTP/Atlas checks passed; not yet checked on Render. Tags and most-liked sorting remain pending. See PROJECT_STATUS.md for actual verification. |
+| Search Genre/BPM range/Key/tags/title keyword - section 3 Module 4; section 6 Nguyen explicitly Genre/BPM/Key | Partial, Render verified October 18 | GET list supports q title substring, exact genre/key, inclusive bpmMin/bpmMax and AND/public-only filtering with consistent data/total and pagination. Query validation, Swagger, 372 automated tests, 10 local HTTP/Atlas groups and 10 actual Render groups passed; cleanup/main-account preservation verified. Tags and most-liked sorting remain pending. See PROJECT_STATUS.md for actual verification. |
 | Pagination and newest/most-liked ordering - section 3 Module 4; section 6 Nguyen | Partial | Pagination and deterministic newest-first ordering exist. No selectable likesCount ordering. |
 | Like/Unlike and count - section 3 Module 4; section 6 Nguyen | Present for REST | `src/services/track-like.service.js`, `src/models/TrackLike.js`, Like controller/routes. Earlier Render evidence covers permissions, idempotency, counters, concurrency, cascade, and cleanup. Socket broadcast is separate and missing. |
 | My Collection - section 3 Module 4 | Partial data foundation; listing missing | TrackLike stores membership and individual Track Like state is queryable, but no API lists a user's liked Tracks. Exact meaning of collection and its individual task split are unspecified; confirm whether it is the Like-derived collection rather than a separate saved list. |

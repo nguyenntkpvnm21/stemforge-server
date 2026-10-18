@@ -15,7 +15,7 @@ Express, Mongoose, and MongoDB Atlas.
 - Authenticated audio uploads and transactional Like/Unlike with cascade deletion
 - Track responses with public artist information and current-user likedByMe
 
-Public Track title search and genre/key/BPM filtering are implemented locally.
+Public Track title search and genre/key/BPM filtering are implemented and verified on Render.
 Tags, most-liked ordering, realtime features, and audio/stem replacement remain pending.
 
 ## Requirements
@@ -402,8 +402,14 @@ viewer context, invalid queries, and identical real find/count filters passed.
 Cleanup verified zero fixture Users/Tracks/Likes, unchanged preexisting data/main
 account, and DB disconnection. See the
 [search verification summary](docs/PROJECT_STATUS.md#local-searchfilters-feature-october-18-2026).
-Search/filtering has not been checked on Render; the October 18 Render result
-below covers the earlier artist/likedByMe feature.
+Subsequent [Render search/filter verification](docs/PROJECT_STATUS.md#actual-render-searchfilter-verification-and-cleanup-october-18-2026)
+passed 10/10 groups using two marked accounts and 14 Track fixtures, including
+default pagination across 13 public Tracks and tied-timestamp ordering. All 30
+invalid query cases returned 400; public-only results, filtered totals and viewer
+context passed. Cleanup and preexisting-data/main-account preservation were
+verified, with DB disconnection. Live commit `8691027` was confirmed by Nguyen
+in Render Dashboard; main/dev were synchronized to it. Generated reports remain
+local and ignored. Tags and most-liked sorting remain pending.
 
 ### Real MongoDB and local HTTP verification
 
