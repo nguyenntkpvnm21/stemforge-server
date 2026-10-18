@@ -1,0 +1,77 @@
+{
+  "kind": "local-track-response",
+  "marker": "sf-context-20261018114826-6a9e0e75",
+  "baseline": {
+    "users": {
+      "count": 1,
+      "digest": "706d40a2e0b0d5d7710b338a1a1db1584fed85dab21e241fb5139f0c525192a8"
+    },
+    "tracks": {
+      "count": 0,
+      "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "tracklikes": {
+      "count": 0,
+      "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "mainAccountDigest": "318cb31b92f6d7353911cfa238328d452c0ee0e02fcdd0ec1e8d0f3cfc6f4e30"
+  },
+  "users": [
+    {
+      "id": "6ad4b20a257a6b22d64cac50",
+      "username": "sf-context-20261018114826-6a9e0e75-0",
+      "email": "sf-context-20261018114826-6a9e0e75-0@example.invalid"
+    },
+    {
+      "id": "6ad4b20a257a6b22d64cac51",
+      "username": "sf-context-20261018114826-6a9e0e75-1",
+      "email": "sf-context-20261018114826-6a9e0e75-1@example.invalid"
+    }
+  ],
+  "tracks": [
+    {
+      "title": "sf-context-20261018114826-6a9e0e75-success",
+      "ownerId": "6ad4b20a257a6b22d64cac50",
+      "id": "6ad4b20b257a6b22d64cac53"
+    },
+    {
+      "title": "sf-context-20261018114826-6a9e0e75-failed-post-author",
+      "ownerId": "6ad4b20a257a6b22d64cac50",
+      "id": "6ad4b20c257a6b22d64cac57"
+    },
+    {
+      "title": "sf-context-20261018114826-6a9e0e75-failed-post-membership",
+      "ownerId": "6ad4b20a257a6b22d64cac50",
+      "id": "6ad4b20c257a6b22d64cac59"
+    }
+  ],
+  "checks": [],
+  "orphanOwnerId": "6ad4b20a257a6b22d64cac52",
+  "status": "incomplete",
+  "verification": {
+    "status": "incomplete",
+    "expectedGroups": 10,
+    "completedGroups": 0
+  },
+  "renderTested": false,
+  "startedAt": "2026-10-18T11:48:26.317Z",
+  "scenario": "Post-enrichment rollback fixtures plus deleted Track with remaining fixture Like",
+  "cleanup": {
+    "status": "passed",
+    "remaining": {
+      "users": 0,
+      "tracks": 0,
+      "likes": 0
+    }
+  },
+  "preservation": {
+    "status": "passed",
+    "mainAccountPresent": true,
+    "allPreexistingCollectionsMatch": true
+  },
+  "lastRecovery": {
+    "finishedAt": "2026-10-18T11:48:33.351Z",
+    "status": "passed"
+  },
+  "dbDisconnected": true
+}

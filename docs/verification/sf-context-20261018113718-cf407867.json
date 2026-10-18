@@ -1,0 +1,67 @@
+{
+  "kind": "local-track-response",
+  "marker": "sf-context-20261018113718-cf407867",
+  "baseline": {
+    "users": {
+      "count": 1,
+      "digest": "706d40a2e0b0d5d7710b338a1a1db1584fed85dab21e241fb5139f0c525192a8"
+    },
+    "tracks": {
+      "count": 0,
+      "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "tracklikes": {
+      "count": 0,
+      "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "mainAccountDigest": "318cb31b92f6d7353911cfa238328d452c0ee0e02fcdd0ec1e8d0f3cfc6f4e30"
+  },
+  "startedAt": "2026-10-18T11:37:19.256Z",
+  "users": [
+    {
+      "id": "6ad4af6e1723359d9d38ebdc",
+      "username": "sf-context-20261018113718-cf407867-0",
+      "email": "sf-context-20261018113718-cf407867-0@example.invalid"
+    },
+    {
+      "id": "6ad4af6e1723359d9d38ebdd",
+      "username": "sf-context-20261018113718-cf407867-1",
+      "email": "sf-context-20261018113718-cf407867-1@example.invalid"
+    }
+  ],
+  "tracks": [
+    {
+      "id": "6ad4af6e1723359d9d38ebde",
+      "ownerId": "6ad4af6e1723359d9d38ebdc",
+      "title": "sf-context-20261018113718-cf407867-deleted-parent"
+    }
+  ],
+  "checks": [],
+  "orphanOwnerId": "6ad4af6f1723359d9d38ebdf",
+  "status": "incomplete",
+  "verification": {
+    "status": "incomplete",
+    "expectedGroups": 10,
+    "completedGroups": 0
+  },
+  "renderTested": false,
+  "scenario": "Interrupted before any verification group; Track gone but fixture Like remains",
+  "cleanup": {
+    "status": "passed",
+    "remaining": {
+      "users": 0,
+      "tracks": 0,
+      "likes": 0
+    }
+  },
+  "preservation": {
+    "status": "passed",
+    "mainAccountPresent": true,
+    "allPreexistingCollectionsMatch": true
+  },
+  "lastRecovery": {
+    "finishedAt": "2026-10-18T11:37:22.885Z",
+    "status": "passed"
+  },
+  "dbDisconnected": true
+}

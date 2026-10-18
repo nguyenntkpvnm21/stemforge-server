@@ -1,0 +1,148 @@
+{
+  "kind": "local-track-response",
+  "marker": "sf-context-20261018115004-1526edb2",
+  "startedAt": "2026-10-18T11:50:04.508Z",
+  "baseline": {
+    "users": {
+      "count": 1,
+      "digest": "706d40a2e0b0d5d7710b338a1a1db1584fed85dab21e241fb5139f0c525192a8"
+    },
+    "tracks": {
+      "count": 0,
+      "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "tracklikes": {
+      "count": 0,
+      "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "mainAccountDigest": "318cb31b92f6d7353911cfa238328d452c0ee0e02fcdd0ec1e8d0f3cfc6f4e30"
+  },
+  "users": [
+    {
+      "username": "sf-context-20261018115004-1526edb2-0",
+      "email": "sf-context-20261018115004-1526edb2-0@example.invalid",
+      "avatarUrl": "https://example.invalid/sf-context-20261018115004-1526edb2/avatar.png",
+      "id": "6ad4b26ddaf7482b6fe2a675"
+    },
+    {
+      "username": "sf-context-20261018115004-1526edb2-1",
+      "email": "sf-context-20261018115004-1526edb2-1@example.invalid",
+      "avatarUrl": null,
+      "id": "6ad4b26ddaf7482b6fe2a676"
+    }
+  ],
+  "tracks": [
+    {
+      "ownerId": "6ad4b26ddaf7482b6fe2a675",
+      "title": "sf-context-20261018115004-1526edb2-public-a",
+      "id": "6ad4b26ddaf7482b6fe2a677"
+    },
+    {
+      "ownerId": "6ad4b26ddaf7482b6fe2a675",
+      "title": "sf-context-20261018115004-1526edb2-private-a",
+      "id": "6ad4b26edaf7482b6fe2a679"
+    },
+    {
+      "ownerId": "6ad4b26ddaf7482b6fe2a676",
+      "title": "sf-context-20261018115004-1526edb2-public-b",
+      "id": "6ad4b26edaf7482b6fe2a67b"
+    },
+    {
+      "ownerId": "6ad4b26ddaf7482b6fe2a675",
+      "title": "sf-context-20261018115004-1526edb2-rejected-artist"
+    },
+    {
+      "ownerId": "6ad4b26ddaf7482b6fe2a675",
+      "title": "sf-context-20261018115004-1526edb2-rejected-likedByMe"
+    },
+    {
+      "ownerId": "6ad4b26cdaf7482b6fe2a674",
+      "title": "sf-context-20261018115004-1526edb2-orphan",
+      "id": "6ad4b279daf7482b6fe2a680"
+    }
+  ],
+  "checks": [
+    {
+      "name": "POST returns exact public artist fields and likedByMe=false for both authors",
+      "status": "passed",
+      "details": {
+        "accounts": 2,
+        "avatarCases": [
+          "HTTPS string",
+          "null"
+        ]
+      }
+    },
+    {
+      "name": "Guest list/detail expose only public author fields and likedByMe=false",
+      "status": "passed"
+    },
+    {
+      "name": "Like/Unlike responses and list/detail follow each account membership, not global count",
+      "status": "passed"
+    },
+    {
+      "name": "Public listing stays public-only; private detail is owner-only",
+      "status": "passed"
+    },
+    {
+      "name": "Invalid token and malformed authorization return 401 on public list",
+      "status": "passed"
+    },
+    {
+      "name": "PATCH returns enriched artist and likedByMe=false after Unlike",
+      "status": "passed"
+    },
+    {
+      "name": "POST/PATCH reject response-only fields and do not change existing fixture data",
+      "status": "passed"
+    },
+    {
+      "name": "Missing author returns null on list/detail and preserves Track/artistId",
+      "status": "passed"
+    },
+    {
+      "name": "Real HTTP list performs batched author and membership queries",
+      "status": "passed",
+      "details": {
+        "guest": {
+          "authors": 1,
+          "memberships": 0
+        },
+        "authenticated": {
+          "authors": 1,
+          "memberships": 1
+        }
+      }
+    },
+    {
+      "name": "Computed response fields are absent from every stored fixture Track",
+      "status": "passed"
+    }
+  ],
+  "orphanOwnerId": "6ad4b26cdaf7482b6fe2a674",
+  "renderTested": false,
+  "status": "passed",
+  "verification": {
+    "status": "passed",
+    "expectedGroups": 10,
+    "completedGroups": 10,
+    "finishedAt": "2026-10-18T11:50:21.269Z"
+  },
+  "httpOrigin": "http://127.0.0.1:64830",
+  "cleanup": {
+    "status": "passed",
+    "remaining": {
+      "users": 0,
+      "tracks": 0,
+      "likes": 0
+    }
+  },
+  "preservation": {
+    "status": "passed",
+    "mainAccountPresent": true,
+    "allPreexistingCollectionsMatch": true
+  },
+  "finishedAt": "2026-10-18T11:50:21.269Z",
+  "dbDisconnected": true
+}
