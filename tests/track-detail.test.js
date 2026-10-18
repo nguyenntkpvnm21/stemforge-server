@@ -2,6 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
 const Track = require('../src/models/Track');
+const trackResponseService = require('../src/services/track-response.service');
 const { getTrack } = require('../src/controllers/track.controller');
 const sample = require('./fixtures/track-contract-draft.json');
 
@@ -82,6 +83,8 @@ for (const entry of successCases) {
     };
 
     const findOne = mockFindOne(t, track);
+    const data = { ...track, artist: null, likedByMe: false };
+    const enrich = t.mock.method(trackResponseService, 'enrichTracks', async () => [data]);
     const res = makeResponse();
     const next = t.mock.fn();
 
@@ -95,7 +98,8 @@ for (const entry of successCases) {
     );
 
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.body, { data: track });
+    assert.deepEqual(res.body, { data });
+    assert.deepEqual(enrich.mock.calls[0].arguments, [[track], entry.user?._id]);
     assert.equal(findOne.mock.calls.length, 1);
     assert.deepEqual(
       findOne.mock.calls[0].arguments[0],

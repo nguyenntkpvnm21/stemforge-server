@@ -1,12 +1,20 @@
-const { test } = require('node:test');
+const { test, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 
 const Track = require('../src/models/Track');
+const trackResponseService = require('../src/services/track-response.service');
 const { createTrack } = require('../src/controllers/track.controller');
 const sample = require('./fixtures/track-contract-draft.json');
 
 const ownerId = new mongoose.Types.ObjectId(sample.artistId);
+const session = {};
+beforeEach(t => {
+  t.mock.method(mongoose.connection, 'transaction', async (operation, options) => {
+    assert.deepEqual(options, { readPreference: 'primary', readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } });
+    return operation(session);
+  });
+});
 
 function makeInput() {
   return {
@@ -56,11 +64,13 @@ for (const isPublic of [true, false]) {
         ...structuredClone(sample),
         isPublic,
       };
+      const data = { ...savedTrack, artist: null, likedByMe: false };
+      const enrich = t.mock.method(trackResponseService, 'enrichTracks', async () => [data]);
 
       const create = t.mock.method(
         Track,
         'create',
-        async () => savedTrack
+        async () => [savedTrack]
       );
 
       const res = makeResponse();
@@ -73,16 +83,18 @@ for (const isPublic of [true, false]) {
       );
 
       assert.equal(res.statusCode, 201);
-      assert.deepEqual(res.body, { data: savedTrack });
+      assert.deepEqual(res.body, { data });
+      assert.deepEqual(enrich.mock.calls[0].arguments, [[savedTrack], ownerId, session]);
       assert.equal(create.mock.calls.length, 1);
 
       const payload = create.mock.calls[0].arguments[0];
 
-      assert.deepEqual(payload, {
+      assert.deepEqual(payload, [{
         ...input,
         artistId: ownerId,
         likesCount: 0,
-      });
+      }]);
+      assert.deepEqual(create.mock.calls[0].arguments[1], { session });
 
       assert.equal(next.mock.calls.length, 0);
     }
@@ -130,6 +142,8 @@ for (const [field, value] of [
   ['likesCount', 999],
   ['_id', sample._id],
   ['createdAt', sample.createdAt],
+  ['artist', { _id: sample.artistId, username: 'Spoofed', avatarUrl: null }],
+  ['likedByMe', true],
 ]) {
   test('rejects client-supplied ' + field + ' without writing', async (t) => {
     const input = makeInput();

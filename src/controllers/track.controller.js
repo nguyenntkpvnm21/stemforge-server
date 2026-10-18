@@ -5,6 +5,12 @@ const {
 } = require('../validators/track.validator');
 const mongoose = require('mongoose');
 const TrackLike = require('../models/TrackLike');
+const trackResponseService = require('../services/track-response.service');
+const trackWriteOptions = {
+  readPreference: 'primary',
+  readConcern: { level: 'snapshot' },
+  writeConcern: { w: 'majority' },
+};
 
 function parsePositiveInteger(value, defaultValue) {
   if (value === undefined) {
@@ -56,8 +62,10 @@ async function listTracks(req, res, next) {
       Track.countDocuments(filter).exec(),
     ]);
 
+    const data = await trackResponseService.enrichTracks(tracks, req.user?._id);
+
     return res.status(200).json({
-      data: tracks,
+      data,
       pagination: {
         page,
         limit,
@@ -103,9 +111,9 @@ async function getTrack(req, res, next) {
       });
     }
 
-    return res.status(200).json({
-      data: track,
-    });
+    const [data] = await trackResponseService.enrichTracks([track], req.user?._id);
+
+    return res.status(200).json({ data });
   } catch (error) {
     return next(error);
   }
@@ -127,15 +135,17 @@ async function createTrack(req, res, next) {
   }
 
   try {
-    const track = await Track.create({
-      ...req.body,
-      artistId: req.user._id,
-      likesCount: 0,
-    });
+    const data = await mongoose.connection.transaction(async (session) => {
+      const [track] = await Track.create([{
+        ...req.body,
+        artistId: req.user._id,
+        likesCount: 0,
+      }], { session });
+      const [response] = await trackResponseService.enrichTracks([track], req.user._id, session);
+      return response;
+    }, trackWriteOptions);
 
-    return res.status(201).json({
-      data: track,
-    });
+    return res.status(201).json({ data });
   } catch (error) {
     if (error.name === 'ValidationError') {
       return res.status(400).json({
@@ -174,30 +184,24 @@ async function updateTrack(req, res, next) {
   }
 
   try {
-    const track = await Track.findOneAndUpdate(
-      {
-        _id: trackId,
-        artistId: req.user._id,
-      },
-      {
-        $set: req.body,
-      },
-      {
-        returnDocument: 'after',
-        runValidators: true,
-        upsert: false,
-      }
-    ).exec();
+    const data = await mongoose.connection.transaction(async (session) => {
+      const track = await Track.findOneAndUpdate(
+        { _id: trackId, artistId: req.user._id },
+        { $set: req.body },
+        { session, returnDocument: 'after', runValidators: true, upsert: false }
+      ).exec();
+      if (!track) return null;
+      const [response] = await trackResponseService.enrichTracks([track], req.user._id, session);
+      return response;
+    }, trackWriteOptions);
 
-    if (!track) {
+    if (!data) {
       return res.status(404).json({
         message: 'Track not found',
       });
     }
 
-    return res.status(200).json({
-      data: track,
-    });
+    return res.status(200).json({ data });
   } catch (error) {
     if (error.name === 'ValidationError') {
       return res.status(400).json({

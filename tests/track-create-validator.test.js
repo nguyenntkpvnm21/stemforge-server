@@ -85,6 +85,8 @@ const serverFields = [
   ['likesCount', 100],
   ['createdAt', sample.createdAt],
   ['__v', 1],
+  ['artist', { _id: sample.artistId, username: 'Spoofed', avatarUrl: null }],
+  ['likedByMe', true],
 ];
 
 for (const [field, value] of serverFields) {

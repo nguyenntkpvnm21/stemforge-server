@@ -2,6 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
 const Track = require('../src/models/Track');
+const trackResponseService = require('../src/services/track-response.service');
 const { listTracks } = require('../src/controllers/track.controller');
 const sample = require('./fixtures/track-contract-draft.json');
 
@@ -31,6 +32,9 @@ function mockDatabase(t, options = {}) {
   } = options;
 
   const calls = {};
+  const enrich = t.mock.method(trackResponseService, 'enrichTracks', async (items) => (
+    items.map((track) => ({ ...track, artist: null, likedByMe: false }))
+  ));
 
   const query = {
     sort(value) {
@@ -76,7 +80,7 @@ function mockDatabase(t, options = {}) {
     };
   });
 
-  return { calls, find, count };
+  return { calls, find, count, enrich };
 }
 
 test('returns an empty list with default pagination', async (t) => {
@@ -109,7 +113,7 @@ test('returns an empty list with default pagination', async (t) => {
 
 test('returns tracks with the requested page and limit', async (t) => {
   const tracks = [structuredClone(sample)];
-  const { calls } = mockDatabase(t, { tracks, total: 6 });
+  const { calls, enrich } = mockDatabase(t, { tracks, total: 6 });
   const res = makeResponse();
   const next = t.mock.fn();
 
@@ -121,7 +125,7 @@ test('returns tracks with the requested page and limit', async (t) => {
 
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body, {
-    data: tracks,
+    data: tracks.map((track) => ({ ...track, artist: null, likedByMe: false })),
     pagination: {
       page: 2,
       limit: 5,
@@ -135,6 +139,7 @@ test('returns tracks with the requested page and limit', async (t) => {
   assert.deepEqual(calls.sort, { createdAt: -1, _id: -1 });
   assert.equal(calls.skip, 5);
   assert.equal(calls.limit, 5);
+  assert.deepEqual(enrich.mock.calls[0].arguments, [tracks, undefined]);
   assert.equal(next.mock.calls.length, 0);
 });
 

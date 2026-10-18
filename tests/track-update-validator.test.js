@@ -69,6 +69,8 @@ const forbiddenFields = [
   ['createdAt', '2026-10-15T00:00:00.000Z'],
   ['stems', []],
   ['__v', 1],
+  ['artist', { username: 'Spoofed' }],
+  ['likedByMe', true],
 ];
 
 for (const [field, value] of forbiddenFields) {
