@@ -17,8 +17,15 @@ local HTTP/Atlas groups passed with safe cleanup. After the fix, 283 Track tests
 passed (including the 132-test validator/controller/routes subset), with 20 guest
 %00 HTTP rejections before DB lookups and four literal/textual-NUL controls passing.
 The separate 9-test index suite and Atlas index provisioning passed. These runs
-are not added into a new total. Tag/sort has not been checked on Render.
+are not added into a new total. Subsequently, tag/sort/NUL validation passed
+12/12 actual Render groups on Live 559222a (PR #38/#39; Dashboard confirmation
+from Nguyen). Cleanup, data/main-account/index preservation and DB disconnect
+passed; main/dev and origin refs were synchronized by fast-forward to that release.
 See PROJECT_STATUS.md for actual results and index deployment limits.
+Current local follow-up: Nguyen authorized GET /api/tracks/mine, an authenticated
+owner-only public/private list with page/limit and the existing response context.
+It passed 317 Track, 51 Like and 59 upload tests plus ten real local HTTP/Atlas
+groups, with cleanup and preservation verified. It has not been checked on Render.
 This review changes documentation only; it does not authorize implementation,
 change assignments, certify frontend completion, or create production data.
 
@@ -129,9 +136,9 @@ implementation in this tree, not proof that another repository has no work.
 | Upload metadata including title/Genre/BPM/Key/cover - section 3 Module 3 | Partial | Track creation accepts metadata and cover URL. No cover-image upload route; actual frontend form is outside this repository. The document does not specify who must implement a separate cover-upload endpoint. |
 | Upload multiple stems simultaneously - section 3 Module 3; section 6 Nguyen and week 4 | Partial; multi-stem client flow unverified, request design undecided | `src/middlewares/audio-upload.middleware.js:31` sets files=1 and `.single('audio')` at line 50. Existing POST `/api/uploads/audio` accepts one MP3/WAV/FLAC, max 20 MiB. The document requires simultaneous multi-file capability but does not explicitly require one HTTP request. Whether several single-file uploads satisfy the requirement needs group agreement and integration verification. |
 | Track/Stem CRUD - section 6 week 4 | Partial | `src/controllers/track.controller.js` supports Track create/detail/metadata update/delete. `src/validators/track.validator.js:21` excludes stems from updates. No stem-specific change/replace/delete API. Exact independent Stem CRUD semantics require agreement. |
-| Owner's personal library/dashboard - section 3 Module 3; section 6 Phuc UI and week 5 | Partial support; owner-list API missing | Owner-only update/delete and private detail exist, but `listTracks` at `src/controllers/track.controller.js:23` lists public Tracks only. No authenticated listing of all the owner's public/private Tracks. Dashboard UI completion needs client-repository verification. |
-| Search Genre/BPM range/Key/tags/title keyword - section 3 Module 4; section 6 Nguyen explicitly Genre/BPM/Key | Implemented; tag follow-up locally verified October 19 | q/genre/key/BPM and AND/public-only filtering have actual Render evidence from October 18. Singular tag now matches one full array element literally/case-insensitively with the same data/total filter. Tag/sort follow-up passed 399 automated tests and 11 corrected local HTTP/Atlas groups; not yet checked on Render. Cleanup/main-account/index preservation verified; see PROJECT_STATUS.md. |
-| Pagination and newest/most-liked ordering - section 3 Module 4; section 6 Nguyen | Implemented; mostLiked locally verified October 19 | newest retains createdAt/_id DESC; mostLiked uses likesCount/createdAt/_id DESC. Actual local checks covered real Like counters, date/ID ties, pages and invariant totals. New compound index was intentionally added to the configured shared Atlas DB; exact keys/options, repeat no-op and unhinted IXSCAN without SORT verified. Existing data/indexes preserved; 9 focused utility tests passed. Not a load benchmark; Render tag/sort deployment/checks remain pending. |
+| Owner's personal library/dashboard - section 3 Module 3; section 6 Phuc UI and week 5 | Backend owner listing locally verified; frontend integration unverified | Nguyen separately authorized GET /api/tracks/mine: mandatory auth, req.user._id scope, own public/private Tracks, page/limit, shared owner data/total, newest/_id DESC and artist/likedByMe. Client scope changes are rejected. 317 Track tests and ten local HTTP/Atlas groups passed with cleanup/preservation. Public list stays public-only; Render and Phuc's dashboard integration remain unverified. |
+| Search Genre/BPM range/Key/tags/title keyword - section 3 Module 4; section 6 Nguyen explicitly Genre/BPM/Key | Implemented; Render verified October 18/19 | q/genre/key/BPM have October 18 Render evidence. Tag follow-up passed 12/12 actual Render groups on 559222a, including literal/full-element/case/trim tag matching, all-filter AND, data/total consistency and NUL validation. Cleanup/main-account/index preservation verified; see PROJECT_STATUS.md for separate historical automated/local results. |
+| Pagination and newest/most-liked ordering - section 3 Module 4; section 6 Nguyen | Implemented; Render verified October 19 | newest keeps createdAt/_id DESC; mostLiked uses likesCount/createdAt/_id DESC. Actual Render checks passed real Like counts, time/ID ties, pages and invariant totals. Existing compound index was verified without DDL; unhinted public ranking used IXSCAN without SORT. Cleanup, existing data/indexes and main account preservation passed. Not a load benchmark; see PROJECT_STATUS.md. |
 | Like/Unlike and count - section 3 Module 4; section 6 Nguyen | Present for REST | `src/services/track-like.service.js`, `src/models/TrackLike.js`, Like controller/routes. Earlier Render evidence covers permissions, idempotency, counters, concurrency, cascade, and cleanup. Socket broadcast is separate and missing. |
 | My Collection - section 3 Module 4 | Partial data foundation; listing missing | TrackLike stores membership and individual Track Like state is queryable, but no API lists a user's liked Tracks. Exact meaning of collection and its individual task split are unspecified; confirm whether it is the Like-derived collection rather than a separate saved list. |
 | Synchronized mixer, waveform, volume/mute/solo, seek - section 3 Module 2; section 6 Phuc | Needs verification in frontend | Backend returns ordered stems with names/URLs/duration. This Express repository cannot establish whether Wavesurfer, React controls, AudioContext user gesture handling, or sample/real-data synchronization work. |
@@ -197,13 +204,13 @@ implementation in this tree, not proof that another repository has no work.
    bounded upload/result behavior and cleanup for partial failure. Decide
    necessary Stem CRUD together before changing the established contract; keep
    standalone asset-maintenance work subordinate to the required product flow.
-3. **Support the creator dashboard from the backend.** Propose an authenticated
-   owner-Track listing that includes private Tracks, plus the agreed remaining
-   Track/Stem management operations. Owner-list endpoint details are a backend
-   proposal under his lead role; the named dashboard UI assignment is Phuc's.
-4. **Implement discovery search/filtering and selectable sorting.** Genre, BPM
-   range, Key, tags, and title search plus newest/most-liked order with consistent
-   pagination (Module 4; Nguyen's named search/pagination responsibility).
+3. **Integrate the creator-dashboard API.** The authorized /api/tracks/mine owner
+   listing is locally verified, including private Tracks; release/Render and
+   frontend integration are next verification steps. Remaining Stem-management
+   choices still require agreement. The named dashboard UI assignment is Phuc's.
+4. **Verify discovery integration.** Genre, BPM range, Key, tags, title search and
+   newest/most-liked order have actual Render evidence. Frontend integration
+   remains to be verified (Module 4; Nguyen's search/pagination responsibility).
 5. **Agree and provide the collection backend.** If My Collection is Like-derived,
    propose a paginated current-user liked-Track list with visibility handling.
    The exact collection assignment/design remains unspecified until agreed.

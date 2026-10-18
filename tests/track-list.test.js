@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const Track = require('../src/models/Track');
 const trackResponseService = require('../src/services/track-response.service');
-const { listTracks } = require('../src/controllers/track.controller');
+const { listTracks, listMyTracks } = require('../src/controllers/track.controller');
 const sample = require('./fixtures/track-contract-draft.json');
 
 function makeResponse() {
@@ -288,6 +288,84 @@ for (const operation of ['find', 'count']) {
 
     await listTracks({ query: {} }, res, next);
 
+    assert.equal(next.mock.calls.length, 1);
+    assert.equal(next.mock.calls[0].arguments[0], error);
+    assert.equal(res.statusCode, null);
+    assert.equal(res.body, undefined);
+  });
+}
+
+test('mine defensively requires an authenticated account before database queries', async (t) => {
+  const { find, count, enrich } = mockDatabase(t);
+  const res = makeResponse();
+  await listMyTracks({ query: {} }, res, t.mock.fn());
+  assert.equal(res.statusCode, 401);
+  assert.deepEqual(res.body, { message: 'Authentication required.' });
+  for (const operation of [find, count, enrich]) assert.equal(operation.mock.calls.length, 0);
+});
+
+test('mine uses the same owner-only condition for data/total, with no visibility predicate', async (t) => {
+  const user = { _id: sample.artistId };
+  const tracks = [structuredClone(sample), { ...structuredClone(sample), isPublic: false }];
+  const { calls, enrich } = mockDatabase(t, { tracks, total: 4 });
+  const res = makeResponse();
+  const next = t.mock.fn();
+  await listMyTracks({ user, query: { page: '2', limit: '2' } }, res, next);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(calls.findFilter, { artistId: user._id });
+  assert.equal(calls.findFilter, calls.countFilter);
+  assert.deepEqual(calls.sort, { createdAt: -1, _id: -1 });
+  assert.equal(calls.skip, 2);
+  assert.equal(calls.limit, 2);
+  assert.deepEqual(enrich.mock.calls[0].arguments, [tracks, user._id]);
+  assert.deepEqual(res.body.pagination, { page: 2, limit: 2, total: 4, totalPages: 2 });
+  assert.equal(res.body.data[1].isPublic, false);
+  assert.equal(next.mock.calls.length, 0);
+});
+
+test('mine returns default pagination for an account without Tracks', async (t) => {
+  const { calls } = mockDatabase(t);
+  const res = makeResponse();
+  await listMyTracks({ user: { _id: sample.artistId }, query: {} }, res, t.mock.fn());
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body, { data: [], pagination: { page: 1, limit: 12, total: 0, totalPages: 0 } });
+  assert.equal(calls.skip, 0);
+  assert.equal(calls.limit, 12);
+});
+
+for (const field of ['artistId', 'isPublic', 'q', 'genre', 'key', 'bpmMin', 'bpmMax', 'tag', 'sort', '$or', 'page[$gt]']) {
+  test('mine rejects unsupported scope/filter parameter ' + field + ' before Track reads', async (t) => {
+    const { find, count, enrich } = mockDatabase(t);
+    const res = makeResponse();
+    await listMyTracks({ user: { _id: sample.artistId }, query: { [field]: 'anything' } }, res, t.mock.fn());
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.body, { message: 'Query contains unsupported My Tracks parameters.' });
+    for (const operation of [find, count, enrich]) assert.equal(operation.mock.calls.length, 0);
+  });
+}
+
+for (const [name, query, message] of invalidCases) {
+  test('mine ' + name, async (t) => {
+    const { find, count, enrich } = mockDatabase(t);
+    const res = makeResponse();
+    await listMyTracks({ user: { _id: sample.artistId }, query }, res, t.mock.fn());
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.body, { message });
+    for (const operation of [find, count, enrich]) assert.equal(operation.mock.calls.length, 0);
+  });
+}
+
+for (const operation of ['find', 'count', 'enrichment']) {
+  test('mine forwards ' + operation + ' failure without returning success', async (t) => {
+    const error = new Error('Database unavailable');
+    const mocks = mockDatabase(t, {
+      findError: operation === 'find' ? error : undefined,
+      countError: operation === 'count' ? error : undefined,
+    });
+    if (operation === 'enrichment') mocks.enrich.mock.mockImplementation(async () => { throw error; });
+    const res = makeResponse();
+    const next = t.mock.fn();
+    await listMyTracks({ user: { _id: sample.artistId }, query: {} }, res, next);
     assert.equal(next.mock.calls.length, 1);
     assert.equal(next.mock.calls[0].arguments[0], error);
     assert.equal(res.statusCode, null);
