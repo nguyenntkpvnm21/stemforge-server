@@ -1,8 +1,9 @@
 # Data contract proposal for discussion with Phuc
 
 **Status: Draft - not approved.** Updated October 19, 2026. Released backend:
-`8691027`; artist/likedByMe previously passed real Render HTTP verification
-(12/12 groups), and search/filtering subsequently passed 10/10 Render groups.
+`559222a`; artist/likedByMe previously passed real Render HTTP verification
+(12/12 groups), search/filtering subsequently passed 10/10 Render groups, and
+tag/sort/NUL validation passed 12/12 actual Render groups on October 19.
 Fixture cleanup and main-account preservation were verified. Deployment/testing
 does not constitute Phuc's approval of the updated contract.
 Read `docs/data-contract.md` and `.json` from branch `docs/data-contract` at
@@ -255,8 +256,12 @@ focused utility tests passed. After the NUL fix, 283 Track tests passed, includi
 the 132-test validator/controller/routes subset. Loopback HTTP with DB mocks
 rejected 20 guest %00 requests before database lookups; four literal/textual-NUL
 controls passed. These runs are separate, with no combined post-fix total claimed.
-This is not a load benchmark; Render tag/sort
-deployment/verification remains pending. See
-[current status](PROJECT_STATUS.md#local-tag-and-sort-feature-october-19-2026).
+Subsequent actual Render verification on release 559222a passed 12/12 groups,
+including 20 NUL 400 responses and four literal controls, with fixture cleanup,
+all preexisting data/main-account/index preservation and DB disconnect verified.
+main/dev and origin refs were synchronized by fast-forward to that release.
+The existing index was verified without DDL; unhinted explain used IXSCAN without
+SORT. This is not a load benchmark. See
+[released status](PROJECT_STATUS.md#released-tag-and-sort-feature-october-19-2026).
 This feature and its query documentation do not approve the overall Draft
 contract or resolve the open collection/stem/download decisions.

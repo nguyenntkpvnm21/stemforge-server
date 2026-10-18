@@ -16,7 +16,7 @@ Express, Mongoose, and MongoDB Atlas.
 - Track responses with public artist information and current-user likedByMe
 
 Public Track title search and genre/key/BPM filtering are implemented and verified on Render.
-Tag filtering and most-liked ordering are implemented locally and await deployment.
+Tag filtering, most-liked ordering and NUL query validation are verified on Render.
 Realtime features and audio/stem replacement remain pending.
 
 ## Requirements
@@ -400,9 +400,10 @@ mostLiked explain used SORT -> FETCH -> IXSCAN on the public/newest index; after
 creation and on rerun it used LIMIT -> FETCH -> IXSCAN on
 public_tracks_most_liked, with no blocking SORT and no hint. Existing data and
 indexes were preserved; all runs disconnected. The database had 1 User and no
-Tracks/Likes, so this is index/plan evidence, not a load benchmark. This does not
-certify tag/sort behavior on Render; that feature has not been deployed/tested
-there. Recheck on any different deployment database.
+Tracks/Likes, so that provisioning check was index/plan evidence, not a load
+benchmark. Subsequent actual Render tag/sort verification passed 12/12 groups
+on release 559222a, with the existing index retained and verified. Recheck on any
+different deployment database.
 
 Track listing, detail, creation, metadata updates, owner-only deletion,
 audio uploads, and authenticated likes are implemented.
@@ -510,7 +511,8 @@ validator/controller/routes subset (not an additional total). Real loopback HTTP
 with DB mocks rejected all 20 guest %00 requests before list/count/context or
 User lookups; four literal-regex/textual-NUL controls returned 200. Trimming and
 case-insensitivity remain unchanged. The earlier 399-test and Atlas results
-predate this fix; no combined post-fix total or repeated Atlas run is claimed.
+predate this fix; no combined post-fix automated total is claimed. The subsequent
+Render/Atlas verification below is a separate deployment check.
 
 An initial harness-only comparison failed because the MongoDB driver represents
 sort as a Map; after normalizing that observation, the full run passed with a
@@ -525,8 +527,32 @@ run created and verified it, including repeat-apply and unhinted explain; see
 [deployment instructions](#discovery-indexes). Nine focused index-utility tests
 also passed. The earlier fixture reports remain unchanged. These checks are not
 a production-scale performance benchmark or Render tag/sort verification.
-Tag/sort has **not** been checked on Render. See the
-[current status](docs/PROJECT_STATUS.md#local-tag-and-sort-feature-october-19-2026).
+Those earlier results are historical; the actual Render check below now confirms
+the deployed feature.
+
+### Actual Render tag and sort verification
+
+On October 19, **12/12 groups passed** against the real Render HTTPS API on
+release **559222ac47f197b1214f083d862818fdc3ccaa16** (PR #38/#39; Live SHA confirmed
+by Nguyen in Render Dashboard). Two marked accounts, 14 Tracks (13 public/one
+private) and nine initial real Like memberships verified literal/case/trim tag
+matching, metadata/BPM AND filters, default/newest ordering, mostLiked count/time/ID
+ties, pagination and matching totals, private access, artist/likedByMe, invalid
+queries, and the deployed Swagger. All 20 %00 requests returned the exact 400 NUL
+validation message; four literal/textual-NUL controls returned 200. Production
+query instrumentation was not added; the prior mock tests prove the no-query
+boundary. The run recorded 134 HTTPS responses including five preflight requests;
+a separate read-only preflight invocation made five more.
+
+The existing mostLiked index was verified without DDL. Unhinted public ranking
+explain with fixtures used LIMIT -> FETCH -> IXSCAN on public_tracks_most_liked,
+with no SORT. Cleanup left zero fixture Users/Tracks/Likes; all preexisting data,
+protected main account and index catalogs were preserved. DB disconnected in
+finally. No Cloudinary assets or production fault injection were used. The spent
+harness was removed and generated reports remain local/ignored. This is not a
+load benchmark. main/dev and their origin refs were synchronized by fast-forward
+to 559222a; the workspace finished on dev. The Track/Stem contract remains Draft.
+See the [self-contained results](docs/PROJECT_STATUS.md#released-tag-and-sort-feature-october-19-2026).
 
 ### Real MongoDB and local HTTP verification
 
