@@ -17,6 +17,7 @@ Express, Mongoose, and MongoDB Atlas.
 
 Public Track title search and genre/key/BPM filtering are implemented and verified on Render.
 Tag filtering, most-liked ordering and NUL query validation are verified on Render.
+Authenticated owned-Track listing is implemented locally and awaits deployment.
 Realtime features and audio/stem replacement remain pending.
 
 ## Requirements
@@ -332,6 +333,48 @@ an empty `data` array.
 Invalid pagination or filter parameters return HTTP 400 with a readable
 `message`. Database errors are forwarded to the error middleware.
 Responses include `Cache-Control: no-store`.
+
+### List my Tracks
+
+```text
+GET /api/tracks/mine
+GET /api/tracks/mine?page=2&limit=5
+```
+
+Requires a valid Bearer token. Returns only Tracks whose artistId is the
+authenticated account's _id, including both public and private Tracks. Only
+page/limit are accepted: defaults page=1/limit=12, positive integer page, limit
+1-100, and a safe integer pagination offset, exactly like public listing. Empty,
+repeated, array/operator and invalid pagination values return 400. Other query
+parameters, including artistId/isPublic/q/genre/key/BPM/tag/sort, return 400;
+clients cannot select another owner. Missing, malformed, expired/invalid tokens
+or tokens identifying a missing account return 401 before listing.
+
+Ordering is always createdAt DESC then _id DESC. The response is
+`{data: Track[], pagination:{page,limit,total,totalPages}}`, using the same owner
+condition for data and total. An account without Tracks gets data=[]/total=0/
+totalPages=0; beyond-last pages stay empty while total remains unchanged.
+Each Track includes the same public artist allowlist and likedByMe for the
+current account. Cache-Control remains no-store, including errors. Author/Like
+lookups are batched for the page; empty pages skip enrichment queries.
+
+The public GET /api/tracks endpoint keeps its public-only filter, optional
+authentication, search/filter/sort and response behavior. /mine is registered
+before / and /:trackId and does not pass through the public-only query validator.
+Both list operations share pagination/execution/enrichment logic with separate
+server-controlled scopes. No schema/index migration, collection API or Socket.IO
+feature is introduced. The Track/Stem contract remains Draft.
+
+Local verification passed 317 Track tests, 51 Like tests and 59 upload tests.
+Ten real HTTP/local Atlas groups passed (82 responses) using two accounts and
+15 marked Tracks. This covered authentication, empty-account isolation, own
+public/private Tracks, other-owner exclusion, default/tied ordering, pagination,
+Like state, public-list regression, invalid queries, batched DB commands and
+Swagger. Cleanup left zero fixtures, preserved all preexisting data/main account
+and indexes, closed the HTTP listener and disconnected DB in finally. Placeholder
+audio URLs created no Cloudinary assets. The spent harness was removed; generated
+reports remain local/ignored. **/mine has not been deployed or tested on Render.**
+See [current status](docs/PROJECT_STATUS.md#local-my-tracks-feature-october-19-2026).
 
 ### Discovery indexes
 

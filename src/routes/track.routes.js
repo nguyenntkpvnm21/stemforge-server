@@ -2,6 +2,7 @@ const express = require('express');
 
 const {
   listTracks,
+  listMyTracks,
   getTrack,
   createTrack,
   updateTrack,
@@ -187,14 +188,80 @@ router.use((req, res, next) => {
  *             total:
  *               type: integer
  *               minimum: 0
- *               description: Total number of public tracks matching all supplied filters.
+ *               description: Total number of tracks matching this endpoint's access scope and supplied filters.
  *               example: 0
  *             totalPages:
  *               type: integer
  *               minimum: 0
- *               description: Zero when no public tracks match the supplied filters.
+ *               description: Zero when no tracks match this endpoint's access scope and supplied filters.
  *               example: 0
  */
+
+/**
+ * @openapi
+ * /api/tracks/mine:
+ *   get:
+ *     tags: [Tracks]
+ *     summary: List the authenticated account's tracks
+ *     description: >-
+ *       Requires Bearer authentication. Includes both public and private Tracks
+ *       whose artistId is the current account's ID, ordered by createdAt DESC,
+ *       then _id DESC. Clients cannot select another owner. Only page and limit
+ *       are supported; artistId, isPublic, search/filter and sort parameters are
+ *       rejected with 400. Data and total use the same owner condition.
+ *       Each Track includes public artist information and likedByMe for the
+ *       authenticated account. Empty results have total=0 and totalPages=0;
+ *       beyond-last pages are empty and retain total. Cache-Control is no-store.
+ *       This is an owned-Track list, not a Like-derived collection.
+ *       The Track/Stem contract remains Draft.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         description: Positive integer page number; the pagination offset must be a safe integer.
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 9007199254740991
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         description: Number of owned tracks per page.
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 12
+ *     responses:
+ *       '200':
+ *         description: Current account's public and private Tracks and owner-scoped pagination.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TrackListResponse'
+ *       '400':
+ *         description: Invalid, repeated, nested/operator, or unsupported query parameters; unsafe pagination offset.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       '401':
+ *         description: Authentication is missing, malformed, expired, invalid, or identifies a missing account.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       '500':
+ *         description: Database, response enrichment, or authentication service error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get('/mine', authenticate, listMyTracks);
 
 /**
  * @openapi

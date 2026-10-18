@@ -6,7 +6,8 @@ Last updated: October 19, 2026 (Asia/Saigon).
 
 Authentication (register/login/me, JWT, shared authentication rate limit), public
 Track metadata/tag filtering, newest/most-liked ordering and pagination,
-visibility-aware detail, authenticated creation, owner-only
+authenticated owned-Track listing (local feature), visibility-aware detail,
+authenticated creation, owner-only
 metadata update/deletion, audio upload, and transactional Like/Unlike APIs.
 
 Like endpoints are authenticated GET/PUT/DELETE `/api/tracks/:trackId/like` with
@@ -18,6 +19,86 @@ the same transaction. Startup awaits the unique Track/user Like index.
 The Track/Stem contract remains a draft awaiting Phuc's review. Audio/stem
 replacement and orphan Cloudinary asset cleanup remain pending. Cloudinary audio
 URLs use public delivery; Track visibility does not protect those URLs.
+
+## Local My Tracks feature (October 19, 2026)
+
+Current branch: **feature/my-tracks**, created from synchronized dev/main/origin
+559222a. The four Render tag/sort verification documents were preserved and
+committed separately as **76ebe96**, `docs: record tag filtering and sorting
+deployment verification`, before feature edits. Handoff files and local reports
+are preserved. The reviewed feature is prepared for feature -> dev -> main PRs;
+**/mine has not been deployed or tested on Render.** Contract remains **Draft**,
+awaiting Phuc's final review.
+
+### Design and implemented behavior
+
+- GET /api/tracks/mine uses mandatory authenticate and an additional controller
+  guard. The only scope is {artistId:req.user._id}, including public/private
+  Tracks belonging to that account; artistId from clients cannot select scope.
+- Only page/limit are supported. All other parameters, including visibility,
+  artistId, discovery filters and sort, return 400. Existing pagination defaults
+  (1/12), positive integer parsing, limit 1-100 and safe-offset checks are reused.
+- Ordering is fixed createdAt DESC, _id DESC. Both find/count receive the same
+  owner condition. An account without Tracks gets total=0/totalPages=0; empty
+  beyond-last pages retain the correct owner total.
+- Public GET /api/tracks still uses its existing public-only validator and
+  optional authentication. Mine does not reuse that isPublic=true filter.
+  Pagination/query execution/enrichment are shared behind the separate scopes.
+- /mine is registered before / and /:trackId. The existing TrackListResponse,
+  public artist allowlist, per-account likedByMe and no-store policy are retained.
+  Page enrichment is batched and empty pages skip author/membership queries.
+- No schema, index, startup or dependency changes. Collection/Socket.IO are out
+  of scope; an owned-Track list does not decide the collection design.
+
+### Verification and cleanup
+
+**317/317 Track tests, 51/51 Like tests and 59/59 upload tests passed** on this
+code snapshot. Added 34 controller/HTTP tests covering auth,
+owner-only scope, public/private visibility, foreign-owner exclusion, empty
+accounts/pages, pagination/errors, viewer state, batch queries and Swagger/route
+priority. Public-list/filter/NUL/write/Like regression tests remain passing.
+Historical 399-test/tag-sort and index-script results below are separate runs,
+not added into this feature's totals. git diff --check passed.
+
+Pre-commit review against origin/dev 559222a found one P3 documentation issue:
+the shared TrackListResponse pagination descriptions referred only to public
+Tracks, although mine includes private owned Tracks. Both descriptions now refer
+to the endpoint's access scope and filters. No runtime changes were needed.
+After that fix, 11/11 targeted mine/public-regression/Swagger HTTP tests passed;
+the full suites and Atlas run were not repeated. No remaining blocker was found
+in the reviewed auth/scope/pagination/query/enrichment/documentation paths.
+
+Real local HTTP against configured Atlas: **October 19, 02:07:05-02:07:32
+Asia/Saigon** (October 18, 19:07:05-19:07:32 UTC), marker
+`sf-context-20261018190705-cc659665`. Used an ephemeral loopback listener, private
+environment configuration and DNS_SERVERS; autoIndex/autoCreate were disabled.
+No Render requests, Cloudinary assets or fault injection were used. Tokens and
+passwords stayed in memory; evidence contains no copies of preexisting User data.
+
+**10/10 groups passed, 82 real HTTP responses:**
+
+| Group | Actual result |
+| --- | --- |
+| Fixture auth/setup | Two marked accounts registered/logged in locally, passed /auth/me and matched exact Atlas identities; placeholder HTTPS/null avatars exercised author output. |
+| Authentication | Missing/Bearer-invalid/Basic-invalid/expired/missing-account tokens all returned 401 with no-store and no Track list/count query (five cases). |
+| Fixtures/empty owner | Created 13 owned Tracks for account A and confirmed account B still had zero Tracks/total. Then created two for B: 15 total, seven public/eight private. Four real initial Like memberships were created, including private-own and foreign-public Likes. |
+| Owner/context | A saw exactly its 13 public/private Tracks, B only its two. A's Like of B's public Track did not add it to mine. Exact artist allowlist and current-account membership, rather than global count, passed. Defaults were page=1/limit=12/total=13/totalPages=2. |
+| Ordering/pages | Equal fixture timestamps used _id DESC. Seven pages at limit=2 returned 13 nonoverlapping IDs; default page 2 and beyond-last page retained total. limit=100 also passed. |
+| Like cycle | A liked/unliked its public Track already liked by B; A's state changed true/false and final global count stayed 1, preserving B's membership. |
+| Public regression | Guest/A/B lists in newest/mostLiked modes returned exactly seven public fixtures, excluding all private Tracks. Own-private detail stayed 200; foreign-private details stayed 404. |
+| Invalid queries | All 22 owner/filter/operator/unsupported/repeated/bad-pagination cases returned 400 before Track/count/membership reads. Authentication order remained unchanged. |
+| Real DB commands | One Track find, one count aggregate with identical owner filter, fixed sort, one author batch and one membership batch restricted to current user/page IDs. Empty pages performed zero enrichment reads. |
+| Swagger/storage | HTTP Swagger required Bearer, exposed only page/limit and reused TrackListResponse. Computed artist/likedByMe were absent from stored fixtures. |
+
+Cleanup used exact manifest IDs, marker/title/description, owners and account
+identities. Track/Like removal shared one session sequentially per transaction,
+handled missing parents within fixture scope and refused foreign Likes. Account
+deletion required zero remaining owned Tracks/Likes. **Zero fixture Users, Tracks
+or Likes remain**. Before/after fingerprints matched all preexisting data, the
+protected main account and index catalogs. The database returned to 1 User,
+0 Tracks, 0 Likes. HTTP listener closed and DB disconnected in finally; both flags
+are true in the ignored local report. The spent harness was removed. The report
+is local/ignored and this summary is independent of that file on GitHub.
 
 ## Released tag and sort feature (October 19, 2026)
 
@@ -88,9 +169,9 @@ working tree/index were clean before synchronization. All 19 fingerprinted
 handoff/local-report files retained their hashes. Synchronization used fetch,
 main ff-only origin/main, dev ff-only origin/dev, dev ff-only main, then a normal
 non-force push of dev. **main/dev/origin/main/origin/dev now all equal 559222a**;
-current branch is **dev**. No PR was merged by this verification workflow.
-Four documentation updates for this verification remain local/uncommitted for
-the next explicitly authorized documentation commit.
+the branch at that checkpoint was **dev**. No PR was merged by that verification
+workflow. The four documentation updates were subsequently committed as 76ebe96
+before the local My Tracks feature above.
 
 ## Local tag and sort feature checkpoint (October 19, 2026)
 
