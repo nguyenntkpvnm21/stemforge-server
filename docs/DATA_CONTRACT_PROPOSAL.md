@@ -1,7 +1,9 @@
 # Data contract proposal for discussion with Phuc
 
-**Status: Draft - not approved.** Updated October 18, 2026. Released baseline:
-backend `7d6f2c6`; artist/likedByMe are local feature changes, not deployed yet.
+**Status: Draft - not approved.** Updated October 18, 2026. Released backend:
+`d5501f1`; artist/likedByMe passed real Render HTTP verification (12/12 groups)
+with fixture cleanup and main-account preservation verified. Deployment/testing
+does not constitute Phuc's approval of the updated contract.
 Read `docs/data-contract.md` and `.json` from branch `docs/data-contract` at
 `9e041cd` with `git show`; no checkout or replacement of uncommitted files.
 Retain existing field names and response wrappers. The old draft's statement
@@ -32,8 +34,13 @@ session-bound reads and response sent after commit. Subsequent real-Atlas checks
 verified rollback on both author/membership lookup failures and successful
 responses, plus recovery of orphan fixture Likes without upgrading incomplete
 verification. The latest automated total is 306 (Tracks 170, Likes 51, uploads 59,
-recovery 26). The new response fields have not been deployed or checked on Render,
-and client integration is not yet certified. See PROJECT_STATUS.md for evidence.
+recovery 26). Subsequent actual Render requests passed all 12 groups, covering
+response/privacy/input rules, per-account Like state, public/private access,
+missing authors, cascade, and deployed Swagger. Fixture cleanup and preservation
+of existing data were verified; main/dev were synchronized to d5501f1. Failure
+rollback and query batching retain their local verification scope; no production
+fault injection was used. Client integration is not yet certified. See the
+[Render results](PROJECT_STATUS.md#actual-render-verification-and-cleanup-october-18-2026).
 
 ### Track/Stem responses and inputs
 
@@ -203,13 +210,23 @@ Module 4 mentions Like and My Collection together but does not equate them or
 define an independent collection. Pagination and API details above are current
 code behavior, not invented requirements from the specification.
 
-## Low-dependency backend task while awaiting answers
+## Low-dependency backend task: local search/filters
 
-Propose extending GET `/api/tracks` with metadata filters on public Tracks only:
-genre/key, inclusive bpmMin/bpmMax, and literal title keyword q. Agree lightweight
-query semantics in a separate API proposal; no schema or response-shape changes.
-Keep existing defaults, pagination and deterministic ordering, use the same filter
-for data and total, reject invalid ranges, and escape literal search input.
-Add focused validation/controller tests and Swagger in that future task.
-Tags and most-liked ordering can follow. This task does not depend on roles,
-collection storage, stem-edit decisions, or download policy. Nothing implemented.
+Nguyen subsequently authorized this task. Implemented on
+`feature/track-search-filters`: q is a case-insensitive literal title
+substring; genre/key are case-insensitive full-value literal matches. Text is
+trimmed, nonempty, at most 100 characters before trimming, and accent-sensitive.
+bpmMin/bpmMax are inclusive positive finite plain decimal bounds (32 characters
+maximum); either may be omitted, equal bounds are exact, and inverted ranges
+return 400. These query-string rules do not change JSON write payload types.
+Repeated, nested/operator, or unsupported parameters return 400. All filters
+combine with AND and public-only visibility, with the same filter for data/total.
+Existing pagination, ordering, artist/likedByMe and authentication remain.
+
+372 automated tests and 10 real local HTTP/Atlas groups passed; fixture cleanup,
+preservation of existing data/main account, and DB disconnection were verified.
+See [current status](PROJECT_STATUS.md#local-searchfilters-feature-october-18-2026).
+Search/filtering has not been deployed or tested on Render. Tags and most-liked
+ordering remain next steps. This task does not depend on unresolved roles,
+collection storage, stem-edit, or download decisions and does not approve the
+overall Draft contract.

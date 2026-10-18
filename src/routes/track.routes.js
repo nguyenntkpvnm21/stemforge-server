@@ -187,12 +187,12 @@ router.use((req, res, next) => {
  *             total:
  *               type: integer
  *               minimum: 0
- *               description: Total number of public tracks.
+ *               description: Total number of public tracks matching all supplied filters.
  *               example: 0
  *             totalPages:
  *               type: integer
  *               minimum: 0
- *               description: Zero when no public tracks exist.
+ *               description: Zero when no public tracks match the supplied filters.
  *               example: 0
  */
 
@@ -209,6 +209,16 @@ router.use((req, res, next) => {
  *       optional; a supplied header must be a valid Bearer token. Each Track
  *       includes public artist information and personalized likedByMe (false
  *       for guests). The list remains public-only for authenticated users.
+ *       Optional q, genre, key, bpmMin, and bpmMax combine with AND. q is a
+ *       literal title substring; genre and key are full-value literal matches.
+ *       Text matches ignore case, preserve accent distinctions, and trim query
+ *       whitespace. Text values must be nonempty and at most 100 characters
+ *       before trimming. BPM bounds are inclusive positive finite decimals;
+ *       either bound may be omitted, and bpmMin must not exceed bpmMax.
+ *       Data and total use the same filters; default ordering is unchanged.
+ *       Each parameter accepts one scalar value. Repeated, nested/operator,
+ *       empty, or unsupported parameters return 400. Tags and selectable
+ *       sorting are not supported yet.
  *       The Track/Stem contract is currently a draft.
  *     security:
  *       - {}
@@ -232,6 +242,53 @@ router.use((req, res, next) => {
  *           minimum: 1
  *           maximum: 100
  *           default: 12
+ *       - in: query
+ *         name: q
+ *         required: false
+ *         description: Case-insensitive literal substring of title; regex metacharacters have no special meaning. Trimmed, nonempty.
+ *         schema:
+ *           type: string
+ *           minLength: 1
+ *           maxLength: 100
+ *           example: demo
+ *       - in: query
+ *         name: genre
+ *         required: false
+ *         description: Case-insensitive full-value literal genre match; trimmed, nonempty. No fixed enum.
+ *         schema:
+ *           type: string
+ *           minLength: 1
+ *           maxLength: 100
+ *           example: Electronic
+ *       - in: query
+ *         name: key
+ *         required: false
+ *         description: Case-insensitive full-value literal musical key match; trimmed, nonempty. No enharmonic normalization or fixed enum.
+ *         schema:
+ *           type: string
+ *           minLength: 1
+ *           maxLength: 100
+ *           example: Am
+ *       - in: query
+ *         name: bpmMin
+ *         required: false
+ *         description: Inclusive minimum BPM, greater than zero. Plain finite decimal string, maximum 32 characters; no exponent, sign, hex, or whitespace. Fractions require digits on both sides of the decimal point. Cannot exceed bpmMax.
+ *         schema:
+ *           type: string
+ *           minLength: 1
+ *           maxLength: 32
+ *           pattern: '^\d+(\.\d+)?$'
+ *           example: '120.5'
+ *       - in: query
+ *         name: bpmMax
+ *         required: false
+ *         description: Inclusive maximum BPM, greater than zero. Same plain finite decimal syntax and 32-character limit as bpmMin; may be used alone.
+ *         schema:
+ *           type: string
+ *           minLength: 1
+ *           maxLength: 32
+ *           pattern: '^\d+(\.\d+)?$'
+ *           example: '140'
  *     responses:
  *       '200':
  *         description: Public track list and pagination.
@@ -253,7 +310,7 @@ router.use((req, res, next) => {
  *                 total: 0
  *                 totalPages: 0
  *       '400':
- *         description: Invalid pagination parameters or an unsafe offset.
+ *         description: Invalid, empty, repeated, nested/operator, or unsupported query parameters; inverted BPM range or unsafe pagination offset.
  *         content:
  *           application/json:
  *             schema:
@@ -268,6 +325,12 @@ router.use((req, res, next) => {
  *               unsafeOffset:
  *                 value:
  *                   message: The requested page is too large.
+ *               invertedBpmRange:
+ *                 value:
+ *                   message: bpmMin must be less than or equal to bpmMax.
+ *               unsupportedQuery:
+ *                 value:
+ *                   message: Query contains unsupported Track list parameters.
  *       '401':
  *         description: A supplied Authorization header or token is invalid.
  *         content:

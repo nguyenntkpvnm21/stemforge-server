@@ -20,7 +20,7 @@ const secondId = '507f1f77bcf86cd799439022';
 const privateId = '507f1f77bcf86cd799439033';
 const artist = { _id: ownerId, username: 'Composer', avatarUrl: null };
 
-async function startServer(t, { likedIds = [], missingAuthor = false } = {}) {
+async function startServer(t, { likedIds = [], missingAuthor = false, expectedFilter = { isPublic: true } } = {}) {
   const records = [
     new Track(sample),
     new Track({ ...sample, _id: secondId }),
@@ -49,7 +49,7 @@ async function startServer(t, { likedIds = [], missingAuthor = false } = {}) {
     };
   });
   t.mock.method(Track, 'find', filter => {
-    assert.deepEqual(filter, { isPublic: true });
+    assert.deepEqual(filter, expectedFilter);
     let skip = 0;
     let limit = 12;
     return {
@@ -60,7 +60,7 @@ async function startServer(t, { likedIds = [], missingAuthor = false } = {}) {
     };
   });
   t.mock.method(Track, 'countDocuments', filter => {
-    assert.deepEqual(filter, { isPublic: true });
+    assert.deepEqual(filter, expectedFilter);
     return { async exec() { return records.filter(track => track.isPublic).length; } };
   });
   t.mock.method(Track, 'findOne', filter => ({
@@ -235,4 +235,47 @@ test('Swagger response and request schemas agree with the implemented contract',
     const response = spec.paths[route][method].responses[responseCode].content['application/json'].schema;
     assert.equal(response.$ref, `#/components/schemas/${method === 'get' && route === '/api/tracks' ? 'TrackListResponse' : 'TrackResponse'}`);
   }
+});
+
+test('filtered HTTP list preserves pagination, artist, viewer membership and optional authentication', async (t) => {
+  const server = await startServer(t, { likedIds: [secondId], expectedFilter: {
+    isPublic: true, title: { $regex: 'demo', $options: 'i' }, genre: { $regex: '^electronic$', $options: 'i' },
+    key: { $regex: '^am$', $options: 'i' }, bpm: { $gte: 128, $lte: 128 },
+  } });
+  const query = '?q=demo&genre=electronic&key=am&bpmMin=128&bpmMax=128&page=2&limit=1';
+  const response = await server.send(query, { userId: viewerId });
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.json.pagination, { page: 2, limit: 1, total: 2, totalPages: 2 });
+  assert.equal(response.json.data.length, 1);
+  assert.equal(response.json.data[0]._id, secondId);
+  assert.deepEqual(response.json.data[0].artist, artist);
+  assert.equal(response.json.data[0].likedByMe, true);
+  assert.deepEqual(server.calls.likes[0].trackId.$in.map(String), [secondId]);
+  assert.equal((await server.send(query)).json.data[0].likedByMe, false);
+  assert.equal((await server.send(query, { authorization: 'Bearer invalid' })).status, 401);
+});
+
+test('HTTP query parser rejects repeated, nested/operator and unsupported filters', async (t) => {
+  const server = await startServer(t);
+  for (const query of [
+    '?q=one&q=two', '?genre=Jazz&genre=Rock', '?key[]=Am', '?q[$regex]=.*', '?genre[$ne]=Jazz',
+    '?bpmMin[$gte]=120', '?bpmMax=120&bpmMax=130', '?$where=true', '?isPublic=false',
+    '?sort=likesCount', '?tags=rock', '?q=%20%20', '?bpmMin=130&bpmMax=120', '?bpmMax=Infinity',
+  ]) {
+    const response = await server.send(query);
+    assert.equal(response.status, 400, query);
+    assert.equal(typeof response.json.message, 'string');
+  }
+  assert.equal(server.calls.authors.length, 0);
+  assert.equal(server.calls.likes.length, 0);
+});
+
+test('Swagger documents supported list filters, length limits and inclusive BPM semantics', () => {
+  const operation = require('../src/config/swagger').paths['/api/tracks'].get;
+  const parameters = Object.fromEntries(operation.parameters.map(p => [p.name, p]));
+  assert.deepEqual(Object.keys(parameters).sort(), ['bpmMax', 'bpmMin', 'genre', 'key', 'limit', 'page', 'q']);
+  for (const name of ['q', 'genre', 'key']) assert.equal(parameters[name].schema.maxLength, 100);
+  for (const name of ['bpmMin', 'bpmMax']) assert.match(parameters[name].description, /[Ii]nclusive/);
+  assert.match(operation.description, /AND/);
+  assert.match(operation.description, /literal/);
 });
