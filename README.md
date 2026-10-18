@@ -390,6 +390,13 @@ are placeholders; this does not upload assets or test Render. The runner closes
 its HTTP server and disconnects MongoDB in finally. It also compares preexisting
 User/Track/Like fingerprints, including the protected main account, before/after.
 
+Generated `sf-context-*.json` and `sf-write-rollback-*.json` reports in
+docs/verification are ignored by Git and retained locally for recovery/audit.
+Keep an interrupted run's manifest until cleanup is verified. The versioned
+[project status](docs/PROJECT_STATUS.md#postpatch-enrichment-rollback-correction-october-18-2026)
+summarizes the actual 306-test, Atlas/HTTP, rollback, and recovery results without
+requiring those local reports. Render verification for this feature is pending.
+
 If a run is interrupted, retain its manifest and recover with
 `node scripts/check-local-track-responses.js --cleanup <manifest-path>`.
 Recovery validates exact marker/account/owner identities; do not edit a manifest

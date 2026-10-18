@@ -21,10 +21,12 @@ URLs use public delivery; Track visibility does not protect those URLs.
 ## Current local feature: public artist and likedByMe (October 18, 2026)
 
 Status: implemented and reviewed; **306/306 automated tests**, real-MongoDB local
-HTTP checks (10/10 groups), and rollback/recovery checks passed. Nguyen authorized
-the feature commit and push on October 18. This record accompanies that release
-preparation; no PR merge or deployment is included. **Render verification for this
-feature remains pending.** Earlier dated sections retain their original results.
+HTTP checks (10/10 groups), and rollback/recovery checks passed. The feature was
+committed and pushed as `cf6f60c` on October 18. Generated JSON reports are now
+kept locally and ignored by Git; the results below are self-contained. This
+documentation cleanup does not change application logic or access the database.
+No PR merge or deployment is included. **Render verification for this feature
+remains pending.** Earlier dated sections retain their original results.
 Branch: `feature/track-response-context`, based on released `7d6f2c6`.
 Initial inspection found no tracked changes or unfinished search/filter code;
 only the existing untracked handoff/review/evidence files. They were preserved.
@@ -74,7 +76,7 @@ review's uncertainty on that specific point.
 - Swagger is consistent across all four Track response operations; README
   describes derived fields, authentication changes, and current test totals.
 
-### Actual local verification
+### Initial automated verification (historical)
 
 All **270 tests passed**, zero failures (25 added over the 245-test baseline):
 
@@ -102,8 +104,8 @@ outside the sandbox passed preflight and the checks below. The failed read-only
 preflight created no fixtures and its process was terminated.
 
 Runner: [check-local-track-responses.js](../scripts/check-local-track-responses.js).
-Evidence: [nonsecret manifest/results](verification/sf-context-20261018070338-5ff48482.json).
 Marker: `sf-context-20261018070338-5ff48482`.
+The complete result summary follows; the generated manifest is local-only.
 
 **10/10 verification groups passed, zero failed or blocked:**
 
@@ -144,16 +146,16 @@ verification must not be presented as verification of this uncommitted feature.
 
 No disposable token/response files were created. Retain the runner because it is
 reusable for future local response regression checks, with read-only default,
-explicit --run, and validated --cleanup manifest recovery. Retain its nonsecret
-manifest as evidence. Earlier handoff/Render files were preserved unchanged.
+explicit --run, and validated --cleanup manifest recovery. Its nonsecret manifest
+is retained locally for audit. Earlier handoff/Render files remain unchanged.
 
 ### Repeat local verification requested (October 18, 2026)
 
 Reran the same reusable HTTP/real-Atlas runner at **18:21:19-18:21:33 Asia/Saigon**
 (11:21:19-11:21:33 UTC) with a fresh marker:
 `sf-context-20261018112119-82b3df75`.
-[Repeat-run manifest/results](verification/sf-context-20261018112119-82b3df75.json)
-record **10/10 groups passed**, two disposable accounts and four created Tracks.
+This repeat recorded **10/10 groups passed**, two disposable accounts and four
+created Tracks; its generated manifest remains local-only.
 All requested guest/authenticated, Like/Unlike, public/private, invalid-token,
 POST/PATCH, privacy, raw persistence/input rejection, and orphan-author checks
 passed again. Actual list enrichment remained one author query plus zero guest
@@ -169,8 +171,7 @@ Application source fingerprints matched before/after this repeat run; no logic
 or test changes were needed and the earlier 270 automated tests were not rerun.
 The previous handoff files and Render evidence retain their hashes. **Render is
 still untested for this feature.** No search/filter work, staging, commit, push,
-or deployment occurred. The proposed feature commit now includes 21 files, adding
-this repeat evidence to the existing 20-file list (before the recovery fixes below).
+or deployment occurred during that repeat verification.
 
 ### Recovery runner corrections (October 18, 2026)
 
@@ -201,14 +202,14 @@ runner-only fixes; the project now has 296 automated tests across four suites.
 
 Actual MongoDB verification of the fix:
 
-1. [Interrupted recovery scenario](verification/sf-context-20261018113718-cf407867.json):
+1. **Interrupted recovery scenario**, 18:37 Asia/Saigon:
    created only marked fixture accounts/Track/Like, removed that fixture Track,
    then invoked the actual `--cleanup` CLI with **zero verification checks**.
    Orphan Like and fixture accounts were removed; cleanup/lastRecovery passed,
    verification and overall original status remained **incomplete (0/10)**.
    Original preexisting-data/main-account fingerprints matched; DB disconnected.
    This incomplete verdict is expected test evidence, not a failed feature check.
-2. [Full HTTP regression after fix](verification/sf-context-20261018113902-ee366e0e.json):
+2. **Full HTTP regression after fix**:
    **10/10 groups passed** at 18:39:02-18:39:17 Asia/Saigon. Verification recorded
    passed with expectedGroups=10/completedGroups=10; cleanup passed with zero
    fixture users/Tracks/Likes, preserved all preexisting data/main account, and
@@ -216,7 +217,7 @@ Actual MongoDB verification of the fix:
 
 No application fault injection, Cloudinary assets, or Render requests were used.
 The temporary fixture-setup harness was deleted after the recovery scenario;
-retain only reusable helpers/tests/runner and nonsecret evidence. Earlier HTTP
+retain reusable helpers/tests/runner and local-only nonsecret reports. Earlier HTTP
 manifests were not changed. Source fingerprints for application files are
 unchanged. `node --check` and `git diff --check` passed. **Render remains untested
 for this feature; no commit, push, or deployment occurred.**
@@ -249,7 +250,7 @@ verification, legacy evidence, scoped orphan cleanup, and foreign/main-ID refusa
 
 Actual HTTP local + Atlas checks:
 
-- [Rollback scenario results](verification/sf-write-rollback-20261018114826-6a9e0e75.json),
+- **Rollback scenario results**,
   18:48:26-18:48:33 Asia/Saigon: **8/8 scenario checks passed**. Four deliberate
   local-only author/membership enrichment failures (POST/PATCH each) returned
   HTTP 500 with no success data. Raw DB reads confirmed no Track persisted after
@@ -260,28 +261,29 @@ Actual HTTP local + Atlas checks:
   application code or deployed. Success POST/PATCH still returned public artist
   and correct likedByMe, including two accounts' Like membership. Foreign PATCH
   remained 404 and guest likedByMe remained false.
-- [Recovery evidence](verification/sf-context-20261018114826-6a9e0e75.json):
+- **Recovery scenario**, 18:48 Asia/Saigon:
   intentionally removed only the marked fixture Track while leaving two fixture
   Likes, then invoked the actual --cleanup CLI with checks=[]. Both orphan Likes
   and fixture accounts were removed. Cleanup/lastRecovery passed; original
   status and verification remained incomplete (0/10). No false verification pass.
-- [Full normal-flow HTTP regression](verification/sf-context-20261018115004-1526edb2.json):
+- **Full normal-flow HTTP regression**, 18:50:04-18:50:21 Asia/Saigon:
   **10/10 groups passed** after the transaction correction, covering guest and
   per-account state, public/private permissions, POST/PATCH response/input rules,
   privacy, missing author, persisted shape, and real list query batching.
 
 All these runs ended with zero fixture users/Tracks/Likes, matching preexisting
 data/main-account fingerprints and dbDisconnected=true. No Cloudinary assets or
-Render requests were made. Temporary local fault harness was deleted; retain
-only the nonsecret results and automated tests. Old evidence remains unchanged.
-No search/filter changes, commit, push, or deployment. Render has not verified
-this feature. The proposed feature commit now contains 29 files below.
+Render requests were made. The temporary local fault harness was deleted.
+Nonsecret generated reports remain local-only; the results are summarized above.
+No search/filter changes or deployment occurred. Render has not verified
+this feature. The final PR scope after report cleanup is 23 versioned files below.
 
-### Feature commit scope (reviewed for commit/push)
+### Final feature PR scope after report cleanup
 
-Feature implementation, tests, contract, and actual local evidence:
+Feature implementation, tests, contract, ignore rules, and verification summaries:
 
 ```text
+.gitignore
 README.md
 package.json
 src/controllers/track.controller.js
@@ -304,13 +306,6 @@ docs/data-contract.json
 docs/DATA_CONTRACT_PROPOSAL.md
 docs/REQUIREMENTS_REVIEW.md
 docs/PROJECT_STATUS.md
-docs/verification/sf-context-20261018070338-5ff48482.json
-docs/verification/sf-context-20261018112119-82b3df75.json
-docs/verification/sf-context-20261018113718-cf407867.json
-docs/verification/sf-context-20261018113902-ee366e0e.json
-docs/verification/sf-context-20261018114826-6a9e0e75.json
-docs/verification/sf-write-rollback-20261018114826-6a9e0e75.json
-docs/verification/sf-context-20261018115004-1526edb2.json
 ```
 
 Previously untracked handoff artifacts remain unchanged. Preserve them in a
@@ -319,16 +314,20 @@ separate handoff/history documentation commit if they have not yet been recorded
 `docs/verification/sf-render-likes-20261017071857-4621b3aa.json`.
 Do not silently include them as new feature implementation or delete them.
 
-Release preparation review found no spent temporary harnesses or secret/response
-files in this scope. Retained JSON evidence contains only marked dummy fixture
-identities/IDs, counts, fingerprints, and check results; no tokens, credentials,
-connection strings, or copies of preexisting User documents. Recovery manifests
-retain the exact fixture scope and preservation baseline needed for safe reuse.
-Only documentation changed during commit preparation, so the successful 306-test
-run and actual Atlas/HTTP results above were not rerun.
+Exactly seven generated JSON reports added by the initial feature commit are
+removed from Git tracking and retained locally without modification. Ignore rules
+cover only /docs/verification/sf-context-*.json and
+/docs/verification/sf-write-rollback-*.json; other files in that directory remain
+eligible for version control. No history rewrite or database operation is needed.
+The local recovery manifests retain exact fixture IDs/markers/owners and baseline
+fingerprints. Versioned summaries above preserve the actual outcomes, including
+the expected incomplete 0/10 verdict in interrupted recovery checks, without
+depending on local report files. No spent temporary harness is retained.
+Only documentation and ignore/tracking rules changed during PR cleanup, so the
+successful 306-test run and actual Atlas/HTTP results above were not rerun.
 
-Next: commit this explicit file set and push feature/track-response-context, then
-review a merge-commit PR into dev followed by dev into main. The second PR must
+Next: push this documentation cleanup to feature/track-response-context and review
+the merge-commit PR into dev followed by dev into main. The second PR must
 wait for the feature to reach dev. No PR is merged automatically. Phuc's final
 confirmation of the updated Draft contract (including missing-author null) is
 still pending. Render verification must follow deployment of this feature.
