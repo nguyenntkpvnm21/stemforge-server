@@ -15,8 +15,9 @@ Express, Mongoose, and MongoDB Atlas.
 - Authenticated audio uploads and transactional Like/Unlike with cascade deletion
 - Track responses with public artist information and current-user likedByMe
 
-Public Track title search and genre/key/BPM filtering are implemented locally.
-Tags, most-liked ordering, realtime features, and audio/stem replacement remain pending.
+Public Track title search and genre/key/BPM filtering are implemented and verified on Render.
+Tag filtering and most-liked ordering are implemented locally and await deployment.
+Realtime features and audio/stem replacement remain pending.
 
 ## Requirements
 
@@ -265,8 +266,10 @@ GET /api/tracks
 This endpoint lists public tracks without requiring authentication.
 Optional Bearer authentication supplies current-user Like state. A supplied
 invalid/expired token or malformed header returns 401, as on Track detail.
-Results are ordered by `createdAt` descending, then `_id` descending
-to keep ordering consistent when creation timestamps are equal.
+The default `sort=newest` orders by `createdAt` descending, then `_id` descending.
+`sort=mostLiked` orders by `likesCount` descending, then `createdAt` descending,
+then `_id` descending. Both provide deterministic ties for fixed data. Likes can
+change between requests, so offset pagination does not freeze a ranking snapshot.
 
 Query parameters (each accepts one scalar value):
 
@@ -275,12 +278,19 @@ Query parameters (each accepts one scalar value):
 - `q`: literal title substring, case-insensitive.
 - `genre`, `key`: case-insensitive full-value literal matches, with no fixed enum.
 - `bpmMin`, `bpmMax`: inclusive positive finite BPM bounds; either can be omitted.
+- `tag`: case-insensitive full-value literal match against one element of `tags`.
+- `sort`: exactly `newest` (default) or `mostLiked`, case-sensitive; no trimming.
 
 All supplied conditions combine with AND and `isPublic=true`, including for an
-authenticated owner. The same filter is applied to data and total. Text filters
+authenticated owner. The same filter is applied to data and total; `sort` changes
+only the order and never the filter or total. Text filters
 are trimmed and must be nonempty, with at most 100 characters before trimming.
+Actual U+0000 (NUL) in q/genre/key/tag returns 400; it is not silently removed.
 Regex characters such as `.*`, `+`, and `[]` are literal text. Matches preserve
-accent distinctions; musical keys receive no enharmonic normalization.
+accent distinctions; musical keys receive no enharmonic normalization. A tag
+must match a whole array element: `Rock` does not match `Rock Remix`, and separate
+elements cannot combine into a match. Use singular `tag`; plural `tags` is not a
+supported query parameter. The 100-character bound also applies to tag.
 
 BPM bounds accept plain decimal query strings of at most 32 characters, such as
 `120` or `120.5`, and must be greater than zero. Fractions need digits before and
@@ -290,14 +300,15 @@ no integer rounding is applied. Omit unused filters rather than sending blanks.
 Use normal URL encoding for values, especially `#` and `+` in musical keys.
 
 Repeated values, arrays/nested query objects, MongoDB operators, and unsupported
-parameters return 400. Only page/limit/q/genre/key/bpmMin/bpmMax are accepted.
-Tags and selectable most-liked sorting remain next steps.
+parameters return 400. Only page/limit/q/genre/key/bpmMin/bpmMax/tag/sort are
+accepted. Invalid sort values, including blank values or `MostLiked`, return 400.
 
 Example:
 
 ```text
 GET /api/tracks?page=2&limit=5
 GET /api/tracks?q=demo&genre=Electronic&key=Am&bpmMin=120&bpmMax=140.5
+GET /api/tracks?tag=electronic&sort=mostLiked&page=2&limit=5
 ```
 
 Successful responses use this structure:
@@ -321,6 +332,77 @@ an empty `data` array.
 Invalid pagination or filter parameters return HTTP 400 with a readable
 `message`. Database errors are forwarded to the error middleware.
 Responses include `Cache-Control: no-store`.
+
+### Discovery indexes
+
+Keep the existing owner and public/newest indexes. The model additionally
+declares the nonunique `public_tracks_most_liked` index:
+
+```javascript
+{ isPublic: 1, likesCount: -1, createdAt: -1, _id: -1 }
+```
+
+The public equality prefix followed by the complete sort keys supports the new
+unfiltered ranking. Additional metadata/range predicates can still require
+filtering; this is not a guarantee that every combination avoids scanning.
+See MongoDB's [compound sort](https://www.mongodb.com/docs/manual/core/indexes/index-types/index-compound/sort-order/)
+and [equality/sort/range](https://www.mongodb.com/docs/manual/tutorial/equality-sort-range-guideline/)
+guidance. Every Like-count change also maintains this index, so there is write
+and storage cost.
+
+No tag index is added: the existing literal `$regex` with `i` preserves query
+semantics, but [case-insensitive regex does not benefit from a collation index](https://www.mongodb.com/docs/manual/reference/operator/query/regex/).
+A normalized tag field/index is a separate schema decision if scale warrants it.
+No `syncIndexes`, `dropIndex`, or removal of existing indexes is introduced.
+Current database configuration does not override Mongoose's autoIndex/autoCreate
+defaults (both true). Model initialization can build declared indexes, but
+startup explicitly awaits only TrackLike.init(), not Track.init(). HTTP readiness
+therefore does not certify completion of the Track index build. Startup behavior
+is unchanged by this feature.
+
+Provision the index explicitly before releasing the new ranking query. From the
+repository root, load private project credentials using the existing environment
+or ignored .env; never put credentials in command arguments:
+
+```powershell
+# Read-only preflight and unhinted queryPlanner explain; inspect index.exists.
+node scripts/ensure-track-most-liked-index.js
+# Intentional, persistent, additive index creation; safe to rerun.
+node scripts/ensure-track-most-liked-index.js --apply
+# Verify idempotence: created=false and beforeCount=afterCount.
+node scripts/ensure-track-most-liked-index.js --apply
+# Focused utility tests; no database connection.
+node --test --test-reporter=spec tests/track-most-liked-index.test.js
+```
+
+The script privately uses MONGO_URI/MONGO_USERNAME/MONGO_PASSWORD and DNS_SERVERS,
+requires an explicit configured database, checks its identity, expected project
+collections and protected main account, and disables automatic index/collection
+creation. It reads the named schema declaration, creates only that index, and
+refuses conflicting keys/options or equivalent keys under another name. Resolve
+conflicts manually; it never drops or replaces indexes. Repeated apply verifies
+the existing index without another createIndex call. Keep the new index after
+verification: this is an intentional database metadata change, with write/storage
+cost, rather than temporary fixture data.
+
+Read-only before/after fingerprints verify all User/Track/Like data and old index
+definitions. Do not run alongside unrelated writes if those preservation checks
+must remain stable. The script records actual unhinted winning plans, disconnects
+in finally, and saves nonsecret sf-context-*.json reports locally under the
+existing docs/verification ignore rule. A successful inspect can report a missing
+index; readiness requires index.exists=true with matching keys/options.
+
+On October 19, the configured shared project Atlas database was provisioned:
+Track indexes increased 3 to 4, then stayed 4 on repeat apply. The actual new
+index has the exact declared ordered keys/name, v=2, and no unique, sparse,
+partial, hidden, TTL or collation override. Before creation the public-only
+mostLiked explain used SORT -> FETCH -> IXSCAN on the public/newest index; after
+creation and on rerun it used LIMIT -> FETCH -> IXSCAN on
+public_tracks_most_liked, with no blocking SORT and no hint. Existing data and
+indexes were preserved; all runs disconnected. The database had 1 User and no
+Tracks/Likes, so this is index/plan evidence, not a load benchmark. This does not
+certify tag/sort behavior on Render; that feature has not been deployed/tested
+there. Recheck on any different deployment database.
 
 Track listing, detail, creation, metadata updates, owner-only deletion,
 audio uploads, and authenticated likes are implemented.
@@ -382,13 +464,15 @@ Track tests include models, input validation, controller access rules, deletion,
 response enrichment, real-router optional authentication, and Swagger consistency.
 Audio upload tests: `npm run test:uploads`.
 
+Automated baseline before the NUL validation follow-up:
+
 | Suite | Tests |
 | --- | --- |
-| Tracks | 236 |
+| Tracks | 263 |
 | Audio uploads | 59 |
 | Likes | 51 |
 | Local recovery runner | 26 |
-| Total | 372 |
+| Total | 399 |
 
 Controller tests cover public-query filters, sorting, pagination,
 invalid parameters, and forwarding database errors.
@@ -402,8 +486,47 @@ viewer context, invalid queries, and identical real find/count filters passed.
 Cleanup verified zero fixture Users/Tracks/Likes, unchanged preexisting data/main
 account, and DB disconnection. See the
 [search verification summary](docs/PROJECT_STATUS.md#local-searchfilters-feature-october-18-2026).
-Search/filtering has not been checked on Render; the October 18 Render result
-below covers the earlier artist/likedByMe feature.
+Subsequent [Render search/filter verification](docs/PROJECT_STATUS.md#actual-render-searchfilter-verification-and-cleanup-october-18-2026)
+passed 10/10 groups using two marked accounts and 14 Track fixtures, including
+default pagination across 13 public Tracks and tied-timestamp ordering. All 30
+invalid query cases returned 400; public-only results, filtered totals and viewer
+context passed. Cleanup and preexisting-data/main-account preservation were
+verified, with DB disconnection. Live commit `8691027` was confirmed by Nguyen
+in Render Dashboard; main/dev were synchronized to it. Generated reports remain
+local and ignored. That Render deployment predates the local tag/sort addition.
+
+### Local tag and sort verification
+
+Before the NUL fix, tag/sort passed **399 automated tests** (263 Tracks, 51 Likes,
+59 uploads, 26 local recovery) and **11/11 local HTTP + real Atlas groups**.
+Two marked accounts and ten Tracks exercised full-element literal tag matching,
+case/trim/length rules, all-filter AND, explicit/default newest, mostLiked ties,
+pagination/total, private visibility, viewer context and invalid queries. Likes
+were created through the real API. Actual MongoDB commands confirmed identical
+find/count filters and separate sort clauses in both modes.
+
+After the NUL fix, **283/283 Track tests passed**, including the **132/132**
+validator/controller/routes subset (not an additional total). Real loopback HTTP
+with DB mocks rejected all 20 guest %00 requests before list/count/context or
+User lookups; four literal-regex/textual-NUL controls returned 200. Trimming and
+case-insensitivity remain unchanged. The earlier 399-test and Atlas results
+predate this fix; no combined post-fix total or repeated Atlas run is claimed.
+
+An initial harness-only comparison failed because the MongoDB driver represents
+sort as a Map; after normalizing that observation, the full run passed with a
+fresh marker. Both runs verified cleanup and preservation. The passing run
+confirmed zero fixture Users/Tracks/Likes, unchanged preexisting data/main
+account and Track indexes, DB disconnection, and no Cloudinary assets. Temporary
+harnesses were removed; generated reports remain local and ignored.
+
+The HTTP fixture run deliberately disabled automatic DDL and observed the new
+index absent, with a blocking SORT. A subsequent explicit additive provisioning
+run created and verified it, including repeat-apply and unhinted explain; see
+[deployment instructions](#discovery-indexes). Nine focused index-utility tests
+also passed. The earlier fixture reports remain unchanged. These checks are not
+a production-scale performance benchmark or Render tag/sort verification.
+Tag/sort has **not** been checked on Render. See the
+[current status](docs/PROJECT_STATUS.md#local-tag-and-sort-feature-october-19-2026).
 
 ### Real MongoDB and local HTTP verification
 
