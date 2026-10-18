@@ -1,12 +1,20 @@
-const { test } = require('node:test');
+const { test, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 
 const Track = require('../src/models/Track');
+const trackResponseService = require('../src/services/track-response.service');
 const { updateTrack } = require('../src/controllers/track.controller');
 const sample = require('./fixtures/track-contract-draft.json');
 
 const ownerId = new mongoose.Types.ObjectId(sample.artistId);
+const session = {};
+beforeEach(t => {
+  t.mock.method(mongoose.connection, 'transaction', async (operation, options) => {
+    assert.deepEqual(options, { readPreference: 'primary', readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } });
+    return operation(session);
+  });
+});
 
 function makeRequest(body, trackId = sample._id) {
   return {
@@ -70,13 +78,16 @@ for (const [name, body] of successfulUpdates) {
     };
 
     const update = mockUpdate(t, savedTrack);
+    const data = { ...savedTrack, artist: null, likedByMe: false };
+    const enrich = t.mock.method(trackResponseService, 'enrichTracks', async () => [data]);
     const res = makeResponse();
     const next = t.mock.fn();
 
     await updateTrack(makeRequest(body), res, next);
 
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.body, { data: savedTrack });
+    assert.deepEqual(res.body, { data });
+    assert.deepEqual(enrich.mock.calls[0].arguments, [[savedTrack], ownerId, session]);
     assert.equal(update.mock.calls.length, 1);
 
     const [filter, changes, options] =
@@ -90,6 +101,7 @@ for (const [name, body] of successfulUpdates) {
     assert.deepEqual(changes, { $set: body });
 
     assert.deepEqual(options, {
+      session,
       returnDocument: 'after',
       runValidators: true,
       upsert: false,
@@ -192,6 +204,15 @@ test('rejects replacing stems without writing', async (t) => {
     'Request contains unsupported Track fields.'
   );
 });
+
+for (const [field, value] of [['artist', { username: 'Spoofed' }], ['likedByMe', true]]) {
+  test('rejects response-only ' + field + ' without writing', async (t) => {
+    await expectRejection(
+      t, makeRequest({ [field]: value }), 400,
+      'Request contains unsupported Track fields.'
+    );
+  });
+}
 
 test('rejects a numeric string BPM without writing', async (t) => {
   await expectRejection(

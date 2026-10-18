@@ -3,3 +3,7 @@ node_modules/
 .env.*
 !.env.example
 npm-debug.log*
+
+# Generated local Track verification and rollback/recovery reports.
+/docs/verification/sf-context-*.json
+/docs/verification/sf-write-rollback-*.json

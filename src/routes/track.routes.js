@@ -64,6 +64,8 @@ router.use((req, res, next) => {
  *         - _id
  *         - title
  *         - artistId
+ *         - artist
+ *         - likedByMe
  *         - genre
  *         - bpm
  *         - key
@@ -89,6 +91,27 @@ router.use((req, res, next) => {
  *           pattern: '^[a-fA-F0-9]{24}$'
  *           description: Owner ID, not a populated user object.
  *           example: '507f1f77bcf86cd799439012'
+ *         artist:
+ *           type: object
+ *           nullable: true
+ *           readOnly: true
+ *           additionalProperties: false
+ *           required: [_id, username, avatarUrl]
+ *           description: Public author fields only; null if the owner User no longer exists. artistId is preserved.
+ *           properties:
+ *             _id:
+ *               type: string
+ *               pattern: '^[a-fA-F0-9]{24}$'
+ *             username:
+ *               type: string
+ *             avatarUrl:
+ *               type: string
+ *               nullable: true
+ *         likedByMe:
+ *           type: boolean
+ *           readOnly: true
+ *           description: Whether the current account likes this Track. Always false for guests; not stored in Track.
+ *           example: false
  *         genre:
  *           type: string
  *           minLength: 1
@@ -182,9 +205,14 @@ router.use((req, res, next) => {
  *     description: >-
  *       No authentication is required. Returns public tracks ordered by
  *       createdAt descending, then _id descending. A page beyond the
- *       available results returns an empty data array.
+ *       available results returns an empty data array. Authentication is
+ *       optional; a supplied header must be a valid Bearer token. Each Track
+ *       includes public artist information and personalized likedByMe (false
+ *       for guests). The list remains public-only for authenticated users.
  *       The Track/Stem contract is currently a draft.
- *     security: []
+ *     security:
+ *       - {}
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: page
@@ -240,8 +268,20 @@ router.use((req, res, next) => {
  *               unsafeOffset:
  *                 value:
  *                   message: The requested page is too large.
+ *       '401':
+ *         description: A supplied Authorization header or token is invalid.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       '500':
+ *         description: Database, response enrichment, or authentication service error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/', listTracks);
+router.get('/', optionalAuthenticate, listTracks);
 
 /**
  * @openapi
@@ -343,9 +383,13 @@ router.get('/', listTracks);
  *       Requires authentication. The backend assigns the owner from the
  *       authenticated account, sets likesCount to zero, and generates IDs.
  *       Unsupported fields are rejected, including client-supplied owner,
- *       IDs, creation time, and likes count. Numbers and booleans must use
+ *       IDs, creation time, likes count, artist, and likedByMe.
+ *       The response includes artist and likedByMe without storing them.
+ *       Creation and response enrichment share one transaction. Enrichment
+ *       failure rolls back the new Track; success is sent only after commit.
+ *       Numbers and booleans must use
  *       their actual JSON types. This endpoint stores supplied metadata;
- *       uploading and verifying audio files are separate pending features.
+ *       audio upload is a separate endpoint, and supplied URLs are not verified.
  *       The example audio URL is a placeholder and cannot play audio.
  *     security:
  *       - bearerAuth: []
@@ -454,6 +498,8 @@ router.post('/', authenticate, createTrack);
  *       their own private tracks. Missing and inaccessible tracks both
  *       return 404. If an Authorization header is supplied, it must
  *       contain a valid Bearer access token.
+ *       The response includes public artist information (null for a missing
+ *       author) and likedByMe for the current account, or false for guests.
  *       The Track/Stem contract is currently a draft.
  *     security:
  *       - {}
@@ -509,6 +555,12 @@ router.post('/', authenticate, createTrack);
  *               $ref: '#/components/schemas/ErrorResponse'
  *             example:
  *               message: Track not found
+ *       '500':
+ *         description: Database, response enrichment, or authentication service error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/:trackId', optionalAuthenticate, getTrack);
 
@@ -566,6 +618,10 @@ router.get('/:trackId', optionalAuthenticate, getTrack);
  *       fields are updated. Omitted fields remain unchanged.
  *       Track ID, owner, stems, likes count, creation time, and internal
  *       version fields cannot be changed through this endpoint.
+ *       Response-only artist and likedByMe are also rejected as inputs.
+ *       The response includes both derived fields without storing them.
+ *       Metadata changes and response enrichment share one transaction;
+ *       enrichment failure rolls back the update. Success follows commit.
  *       Missing Tracks and Tracks belonging to another owner both
  *       return 404. This operation does not create missing Tracks.
  *     security:
@@ -684,6 +740,8 @@ router.patch('/:trackId', authenticate, updateTrack);
  *       whether the Track is public or private.
  *
  *       Deletes the Track document and its embedded stem metadata.
+ *       Cascades all related Likes from every account in the same transaction.
+ *       Track and Like deletion commit together; failure rolls back both.
  *       Files stored in Cloudinary are not removed.
  *
  *       A successful response has no body.

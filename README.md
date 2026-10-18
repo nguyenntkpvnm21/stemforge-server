@@ -11,8 +11,11 @@ Express, Mongoose, and MongoDB Atlas.
 - Configurable frontend origin for CORS
 - Optional DNS resolver configuration
 
-Authentication, track management, audio uploads, likes, and real-time
-features are planned for later development.
+- JWT authentication, ownership-aware Track CRUD, and public pagination
+- Authenticated audio uploads and transactional Like/Unlike with cascade deletion
+- Track responses with public artist information and current-user likedByMe
+
+Search/filtering, realtime features, and audio/stem replacement remain pending.
 
 ## Requirements
 
@@ -127,7 +130,7 @@ For local development:
 
 For the deployed service, append `/api-docs/` to the Render base URL.
 
-The documentation covers health and account authentication endpoints.
+The documentation covers health, authentication, Tracks, audio uploads, and Likes.
 The health endpoint returns the API status and does not actively check
 external services.
 
@@ -259,6 +262,8 @@ updated alongside agreed contract changes.
 GET /api/tracks
 
 This endpoint lists public tracks without requiring authentication.
+Optional Bearer authentication supplies current-user Like state. A supplied
+invalid/expired token or malformed header returns 401, as on Track detail.
 Results are ordered by `createdAt` descending, then `_id` descending
 to keep ordering consistent when creation timestamps are equal.
 
@@ -299,7 +304,44 @@ audio uploads, and authenticated likes are implemented.
 
 Audio/stem replacement is pending.
 
-The Track/Stem data contract remains a draft awaiting teammate review.
+The [Track/Stem data contract](docs/data-contract.md) remains a draft awaiting
+Phuc's final review of the artist/likedByMe additions and missing-author policy.
+
+### Derived Track response fields
+
+List, detail, POST, and PATCH responses retain artistId and all existing Track
+fields, and add:
+
+```json
+{
+  "artist": {
+    "_id": "507f1f77bcf86cd799439012",
+    "username": "demo_composer",
+    "avatarUrl": null
+  },
+  "likedByMe": false
+}
+```
+
+artist exposes only these three public User fields. If the author no longer
+exists, artist is null and artistId remains unchanged; the accessible Track stays
+in results. Frontend acceptance of this fallback is pending. Database errors
+remain errors rather than silently appearing as missing authors or false Likes.
+likedByMe reflects the authenticated user's membership, and is false for guests.
+Both additions are response-only: never persisted in Track or accepted by
+POST/PATCH. The model test fixture intentionally remains the stored Track shape;
+the [contract JSON](docs/data-contract.json) illustrates the enriched API response.
+
+For a nonempty list page, authors are fetched once for distinct owner IDs and
+memberships at most once for the current account and page Track IDs. Guests skip
+the membership lookup; empty pages skip both lookups. Public listing still excludes
+private Tracks, including an authenticated owner's private Tracks. All Track
+responses use Cache-Control: no-store. List/detail counters and membership are
+separate reads. POST/PATCH run the write and enrichment in one transaction with
+the same session; author/membership lookups execute sequentially there. Enrichment
+errors abort the write rather than substituting artist=null or likedByMe=false;
+success is sent only after commit. A genuinely missing author still yields null.
+The dedicated Like endpoint keeps its snapshot and isLiked/likesCount unchanged.
 
 ### Track tests
 
@@ -313,31 +355,66 @@ Run the Track Like model, service, and controller tests:
 npm run test:likes
 ```
 
-Runs 125 tests:
-- 20 model tests.
-- 12 list-controller tests.
-- 9 detail-controller tests.
-- 34 creation-input validator tests.
-- 11 creation-controller tests.
-- 26 update-input validator tests.
-- 13 update-controller tests.
+Track tests include models, input validation, controller access rules, deletion,
+response enrichment, real-router optional authentication, and Swagger consistency.
+Audio upload tests: `npm run test:uploads`.
 
-Audio upload tests:
-- 19 multipart middleware tests
-- 28 upload service tests
-- 8 upload controller tests
-- 4 upload rate limit tests
-
-Run:
-npm run test:uploads
-
-Track tests: 133
-Audio upload tests: 59
-Total: 192
+| Suite | Tests |
+| --- | --- |
+| Tracks | 170 |
+| Audio uploads | 59 |
+| Likes | 51 |
+| Local recovery runner | 26 |
+| Total | 306 |
 
 Controller tests cover public-query filters, sorting, pagination,
 invalid parameters, and forwarding database errors.
-Database queries are mocked; these tests do not connect to MongoDB.
+Database queries are mocked; route tests use an ephemeral local HTTP server.
+These tests do not connect to MongoDB or upload audio.
+
+### Real MongoDB and local HTTP verification
+
+For response/authentication regression checks against the configured database:
+
+```powershell
+node scripts/check-local-track-responses.js
+node scripts/check-local-track-responses.js --run
+```
+
+The default is a read-only DB preflight. `--run` starts the current Express app
+on an ephemeral loopback port, creates uniquely marked disposable accounts and
+Tracks, verifies artist/likedByMe over HTTP, then cleans up only those fixtures.
+It uses private .env configuration, honors DNS_SERVERS, keeps tokens in memory,
+and records only nonsecret IDs/counts/results under docs/verification. Audio URLs
+are placeholders; this does not upload assets or test Render. The runner closes
+its HTTP server and disconnects MongoDB in finally. It also compares preexisting
+User/Track/Like fingerprints, including the protected main account, before/after.
+
+Generated `sf-context-*.json` and `sf-write-rollback-*.json` reports in
+docs/verification are ignored by Git and retained locally for recovery/audit.
+Keep an interrupted run's manifest until cleanup is verified. The versioned
+[project status](docs/PROJECT_STATUS.md#postpatch-enrichment-rollback-correction-october-18-2026)
+summarizes the actual 306-test, Atlas/HTTP, rollback, and recovery results without
+requiring those local reports. Render verification for this feature is pending.
+
+If a run is interrupted, retain its manifest and recover with
+`node scripts/check-local-track-responses.js --cleanup <manifest-path>`.
+Recovery validates exact marker/account/owner identities; do not edit a manifest
+to include unrelated records. This opt-in runner is separate from mock DB tests.
+
+Verification and recovery are independent: verification can pass only after all
+10 distinct expected groups pass. `--cleanup` never promotes incomplete/failed
+verification, changes the original verification completion time, or reruns those
+checks. It records cleanup/preservation and lastRecovery separately; exit 0 from
+`--cleanup` means recovery succeeded, not that feature verification passed.
+Legacy manifests are migrated conservatively; an unsupported old passed verdict
+is downgraded if the required groups are missing.
+
+If a recorded Track is already gone, recovery can remove orphan Likes restricted
+to that fixture Track ID and the recorded fixture account IDs, in a transaction.
+Foreign/main-account Likes cause refusal without deletion. Existing Tracks still
+require matching owner and marker. Focused offline regression tests for these
+rules: `npm run test:local-recovery` (26 tests; no .env or database access).
 
 ## Track detail API
 
@@ -431,8 +508,8 @@ wrapped in `data`. Invalid metadata returns HTTP 400.
 Missing or invalid credentials return HTTP 401.
 Oversized JSON bodies return HTTP 413.
 
-The endpoint stores supplied audio metadata. File uploading and
-verification are separate pending features.
+The endpoint stores supplied audio metadata. Audio upload uses its separate
+endpoint; Track creation does not verify the origin of supplied URLs.
 
 Validation:
 - Creation tests verify input types, server-managed fields,
