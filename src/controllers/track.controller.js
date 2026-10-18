@@ -33,6 +33,23 @@ async function listTracks(req, res, next) {
     return res.status(400).json({ message: error });
   }
 
+  return sendTrackList(req, res, next, filter, sort);
+}
+
+async function listMyTracks(req, res, next) {
+  if (!req.user?._id) {
+    return res.status(401).json({ message: 'Authentication required.' });
+  }
+
+  if (!req.query || typeof req.query !== 'object' || Array.isArray(req.query) ||
+    Object.keys(req.query).some(name => !['page', 'limit'].includes(name))) {
+    return res.status(400).json({ message: 'Query contains unsupported My Tracks parameters.' });
+  }
+
+  return sendTrackList(req, res, next, { artistId: req.user._id }, { createdAt: -1, _id: -1 });
+}
+
+async function sendTrackList(req, res, next, filter, sort) {
   const page = parsePositiveInteger(req.query.page, 1);
   const limit = parsePositiveInteger(req.query.limit, 12);
 
@@ -278,6 +295,7 @@ async function deleteTrack(req, res, next) {
 
 module.exports = {
   listTracks,
+  listMyTracks,
   getTrack,
   createTrack,
   updateTrack,

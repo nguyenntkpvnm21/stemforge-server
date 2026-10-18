@@ -18,14 +18,23 @@ const ownerId = sample.artistId;
 const viewerId = '507f1f77bcf86cd799439099';
 const secondId = '507f1f77bcf86cd799439022';
 const privateId = '507f1f77bcf86cd799439033';
+const foreignPublicId = '507f1f77bcf86cd799439044';
+const foreignPrivateId = '507f1f77bcf86cd799439055';
 const artist = { _id: ownerId, username: 'Composer', avatarUrl: null };
 
-async function startServer(t, { likedIds = [], missingAuthor = false, expectedFilter = { isPublic: true } } = {}) {
+async function startServer(t, { likedIds = [], memberships, includeForeign = false, missingAuthor = false, expectedFilter = { isPublic: true } } = {}) {
   const records = [
     new Track(sample),
     new Track({ ...sample, _id: secondId }),
     new Track({ ...sample, _id: privateId, isPublic: false }),
   ];
+  if (includeForeign) records.push(
+    new Track({ ...sample, _id: foreignPublicId, artistId: viewerId }),
+    new Track({ ...sample, _id: foreignPrivateId, artistId: viewerId, isPublic: false })
+  );
+  const matchesScope = (track, filter) =>
+    (filter.isPublic === undefined || track.isPublic === filter.isPublic) &&
+    (filter.artistId === undefined || String(track.artistId) === String(filter.artistId));
   const calls = { authors: [], likes: [], create: [], update: [], sorts: [] };
   const session = {};
   t.mock.method(mongoose.connection, 'transaction', async operation => operation(session));
@@ -36,7 +45,9 @@ async function startServer(t, { likedIds = [], missingAuthor = false, expectedFi
       select() { return this; }, lean() { return this; },
       session(value) { assert.equal(value, session); return this; },
       async exec() {
-        return missingAuthor ? [] : [{ ...artist, email: 'hidden@example.invalid', role: 'admin', passwordHash: 'test-only-hash' }];
+        const authors = [artist, ...(includeForeign ? [{ _id: viewerId, username: 'Other composer', avatarUrl: null }] : [])];
+        return missingAuthor ? [] : authors.filter(author => filter._id.$in.includes(author._id))
+          .map(author => ({ ...author, email: 'hidden@example.invalid', role: 'admin', passwordHash: 'test-only-hash' }));
       },
     };
   });
@@ -45,7 +56,11 @@ async function startServer(t, { likedIds = [], missingAuthor = false, expectedFi
     return {
       select() { return this; }, lean() { return this; },
       session(value) { assert.equal(value, session); return this; },
-      async exec() { return likedIds.map(trackId => ({ trackId })); },
+      async exec() {
+        return memberships
+          ? memberships.filter(like => like.userId === String(filter.userId) && filter.trackId.$in.map(String).includes(like.trackId))
+          : likedIds.map(trackId => ({ trackId }));
+      },
     };
   });
   t.mock.method(Track, 'find', filter => {
@@ -58,7 +73,7 @@ async function startServer(t, { likedIds = [], missingAuthor = false, expectedFi
       skip(value) { skip = value; return this; },
       limit(value) { limit = value; return this; },
       async exec() {
-        return records.filter(track => track.isPublic).sort((a, b) => {
+        return records.filter(track => matchesScope(track, filter)).sort((a, b) => {
           for (const [field, direction] of Object.entries(order)) {
             const left = field === '_id' ? String(a[field]) : a[field];
             const right = field === '_id' ? String(b[field]) : b[field];
@@ -72,7 +87,7 @@ async function startServer(t, { likedIds = [], missingAuthor = false, expectedFi
   });
   t.mock.method(Track, 'countDocuments', filter => {
     assert.deepEqual(filter, expectedFilter);
-    return { async exec() { return records.filter(track => track.isPublic).length; } };
+    return { async exec() { return records.filter(track => matchesScope(track, filter)).length; } };
   });
   t.mock.method(Track, 'findOne', filter => ({
     async exec() {
@@ -338,4 +353,119 @@ test('tag/mostLiked HTTP pagination uses deterministic ties and retains viewer c
   assert.deepEqual(newest.json.pagination, response.json.pagination);
   assert.equal(newest.json.data[0].likedByMe, false);
   assert.equal((await server.send('?tag=DEMO&sort=mostLiked', { authorization: 'Bearer invalid' })).status, 401);
+});
+
+test('mine requires authentication and is routed before dynamic Track detail', async (t) => {
+  const server = await startServer(t);
+  for (const authorization of [undefined, 'Bearer invalid', 'Basic invalid']) {
+    const response = await server.send('/mine', { authorization });
+    assert.equal(response.status, 401);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+  }
+  assert.equal(Track.find.mock.calls.length, 0);
+  assert.equal(Track.findOne.mock.calls.length, 0);
+  assert.equal(Track.countDocuments.mock.calls.length, 0);
+});
+
+test('mine rejects a valid token for a missing account', async (t) => {
+  const server = await startServer(t);
+  User.findById.mock.mockImplementation(async () => null);
+  const response = await server.send('/mine', { userId: ownerId });
+  assert.equal(response.status, 401);
+  assert.equal(Track.find.mock.calls.length, 0);
+});
+
+test('mine includes own public/private Tracks, excludes other owners and batches response context', async (t) => {
+  const memberships = [
+    { userId: ownerId, trackId: privateId },
+    { userId: viewerId, trackId: sample._id },
+  ];
+  const server = await startServer(t, { includeForeign: true, memberships, expectedFilter: { artistId: ownerId } });
+  const response = await server.send('/mine', { userId: ownerId });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(response.json.data.map(track => track._id), [privateId, secondId, sample._id]);
+  assert.deepEqual(response.json.data.map(track => track.isPublic), [false, true, true]);
+  assert.deepEqual(response.json.data.map(track => track.likedByMe), [true, false, false]);
+  response.json.data.forEach(track => {
+    assert.equal(track.artistId, ownerId);
+    assert.deepEqual(track.artist, artist);
+    assert.deepEqual(Object.keys(track.artist).sort(), ['_id', 'avatarUrl', 'username']);
+  });
+  assert.deepEqual(response.json.pagination, { page: 1, limit: 12, total: 3, totalPages: 1 });
+  assert.equal(server.calls.authors.length, 1);
+  assert.equal(server.calls.likes.length, 1);
+  assert.equal(String(server.calls.likes[0].userId), ownerId);
+  assert.deepEqual(server.calls.likes[0].trackId.$in.map(String), [privateId, secondId, sample._id]);
+  assert.deepEqual(server.calls.sorts[0], { createdAt: -1, _id: -1 });
+});
+
+test('mine pagination preserves owner-scoped total and skips context queries for empty pages', async (t) => {
+  const server = await startServer(t, { includeForeign: true, expectedFilter: { artistId: ownerId } });
+  const page = await server.send('/mine?page=2&limit=2', { userId: ownerId });
+  assert.equal(page.status, 200);
+  assert.deepEqual(page.json.data.map(track => track._id), [sample._id]);
+  assert.deepEqual(page.json.pagination, { page: 2, limit: 2, total: 3, totalPages: 2 });
+  const empty = await server.send('/mine?page=3&limit=2', { userId: ownerId });
+  assert.equal(empty.status, 200);
+  assert.deepEqual(empty.json, { data: [], pagination: { page: 3, limit: 2, total: 3, totalPages: 2 } });
+  assert.equal(server.calls.authors.length, 1);
+  assert.equal(server.calls.likes.length, 1);
+});
+
+test('mine follows the second account identity and does not expose the first account Tracks', async (t) => {
+  const server = await startServer(t, { includeForeign: true, expectedFilter: { artistId: viewerId } });
+  const response = await server.send('/mine', { userId: viewerId });
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.json.data.map(track => track._id), [foreignPrivateId, foreignPublicId]);
+  assert.equal(response.json.pagination.total, 2);
+  response.json.data.forEach(track => assert.deepEqual(track.artist, { _id: viewerId, username: 'Other composer', avatarUrl: null }));
+});
+
+test('mine account without Tracks returns zero total and skips all enrichment queries', async (t) => {
+  const server = await startServer(t, { expectedFilter: { artistId: viewerId } });
+  const response = await server.send('/mine', { userId: viewerId });
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.json, { data: [], pagination: { page: 1, limit: 12, total: 0, totalPages: 0 } });
+  assert.equal(server.calls.authors.length, 0);
+  assert.equal(server.calls.likes.length, 0);
+});
+
+test('mine rejects scope injection and unsupported/repeated/nested queries before Track reads', async (t) => {
+  const server = await startServer(t);
+  for (const query of ['artistId=' + viewerId, 'isPublic=false', 'q=demo', 'tag=demo', 'sort=newest', 'page=0',
+    'page=1&page=2', 'limit=1&limit=2', 'page[$gt]=1', 'artistId[$ne]=x', 'limit=101', 'page=9007199254740991&limit=2']) {
+    const response = await server.send('/mine?' + query, { userId: ownerId });
+    assert.equal(response.status, 400, query);
+    assert.equal(typeof response.json.message, 'string');
+  }
+  assert.equal(Track.find.mock.calls.length, 0);
+  assert.equal(Track.countDocuments.mock.calls.length, 0);
+  assert.equal(server.calls.authors.length, 0);
+  assert.equal(server.calls.likes.length, 0);
+});
+
+test('public list remains public-only with multiple owners and an authenticated owner', async (t) => {
+  const server = await startServer(t, { includeForeign: true });
+  const response = await server.send('', { userId: ownerId });
+  assert.equal(response.status, 200);
+  assert.equal(response.json.pagination.total, 3);
+  assert.ok(response.json.data.every(track => track.isPublic));
+  assert.ok(response.json.data.some(track => track.artistId === viewerId));
+});
+
+test('Swagger documents mine authentication, owner scope, pagination and response contract', () => {
+  const operation = require('../src/config/swagger').paths['/api/tracks/mine'].get;
+  assert.deepEqual(operation.security, [{ bearerAuth: [] }]);
+  assert.deepEqual(operation.parameters.map(parameter => parameter.name), ['page', 'limit']);
+  assert.equal(operation.parameters[0].schema.default, 1);
+  assert.equal(operation.parameters[1].schema.default, 12);
+  assert.equal(operation.parameters[1].schema.maximum, 100);
+  assert.equal(operation.responses['200'].content['application/json'].schema.$ref, '#/components/schemas/TrackListResponse');
+  assert.ok(operation.responses['400'] && operation.responses['401'] && operation.responses['500']);
+  assert.match(operation.description, /public and private/);
+  assert.match(operation.description, /no-store/);
+  const paths = trackRoutes.stack.filter(layer => layer.route).map(layer => layer.route.path);
+  assert.ok(paths.indexOf('/mine') < paths.indexOf('/'));
+  assert.ok(paths.indexOf('/mine') < paths.indexOf('/:trackId'));
 });
