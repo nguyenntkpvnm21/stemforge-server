@@ -18,15 +18,97 @@ The Track/Stem contract remains a draft awaiting Phuc's review. Audio/stem
 replacement and orphan Cloudinary asset cleanup remain pending. Cloudinary audio
 URLs use public delivery; Track visibility does not protect those URLs.
 
-## Current feature: public artist and likedByMe (October 18, 2026)
+## Local search/filters feature (October 18, 2026)
+
+Branch: `feature/track-search-filters`, created from dev `d5501f1`. Existing
+Render-verification documentation was preserved and committed separately as
+`aa2e469` with message `docs: record Track response context deployment verification`.
+Untracked handoff files and ignored reports were preserved. Search/filter code
+is implemented and verified locally; Nguyen authorized its reviewed 11-file
+commit and push. **Search/filtering is not deployed or checked on Render.**
+The Track/Stem contract remains Draft pending Phuc's final review.
+
+GET `/api/tracks` now supports:
+
+- q: literal, case-insensitive title substring.
+- genre/key: case-insensitive full-value literal matches, no enum or musical-key
+  equivalence mapping. All three text values are trimmed, nonempty, at most 100
+  characters before trimming, and accent-sensitive. Regex syntax is escaped.
+- bpmMin/bpmMax: inclusive, optional one-sided bounds; equal bounds mean exact
+  BPM. Accept positive finite plain decimals up to 32 characters, including
+  fractional BPM. Reject exponent/hex notation, signs, whitespace, nonfinite or
+  nonpositive values, and inverted ranges. Query numeric strings are converted
+  to numbers; POST/PATCH still require actual JSON numbers as before.
+- All conditions combine with AND and isPublic=true. One constructed filter is
+  passed to both find and countDocuments. Existing pagination validation,
+  createdAt/_id descending ordering, artist/likedByMe enrichment, public-only
+  visibility (including owners), optional authentication, and no-store remain.
+- Accept only page/limit/q/genre/key/bpmMin/bpmMax as scalar query parameters;
+  repeated, nested/operator, empty, or unsupported values return 400. Unknown
+  parameters were previously ignored; the new explicit allowlist returns 400.
+  Invalid supplied authentication still returns 401 before query validation.
+
+No model fields, response wrappers, indexes, dependencies, Like endpoint behavior,
+or write/transaction paths changed. Bounded regex matching uses existing metadata;
+this adds no relevance ranking or text index. **Tags and most-liked sorting remain
+next steps** and are not accepted as query parameters yet.
+
+### Automated search/filter verification
+
+**372/372 tests passed, zero failures:** Tracks 236, Likes 51, uploads 59,
+local recovery 26. Added 66 tests covering literal metacharacters and unsafe
+inputs, case/full-value matching, lengths and BPM bounds, identical data/total
+filters, sorting/pagination/viewer context, actual Express query parsing and
+authentication, and Swagger parameters. Existing response/write/Like/upload and
+recovery checks remain passing. These automated DB operations are mocked.
+
+### Actual local HTTP + Atlas search verification
+
+Executed **19:57:13-19:57:27 Asia/Saigon** (12:57:13-12:57:27 UTC), marker
+`sf-context-20261018125713-4d6cb5a7`, using the current app on an ephemeral loopback
+listener and private Atlas configuration, honoring DNS_SERVERS. The generated
+local-only JSON is ignored; this summary contains the results independently.
+No Render requests, Cloudinary assets, or production fault injection were used.
+
+**10/10 groups passed, 72 real HTTP responses:**
+
+| Check | Actual result |
+| --- | --- |
+| Fixture setup | Registered two marked users, validated tokens with /auth/me, and created nine Tracks over HTTP with HTTPS audio placeholders. |
+| Literal/case/accent search | An entire title containing brackets, plus, parentheses, anchors, pipe, and backslash matched literally. Uppercase queries matched; Cafe did not match Café, while CAFÉ did. Regex wildcard text did not expand matches. |
+| Genre/key | Trimmed, case-insensitive exact matches worked for Electro (Live) and A+; similar longer genres/keys were excluded. |
+| BPM | Inclusive endpoints, fractional 130.5, one-sided ranges, and equal bounds returned exactly the expected fixture IDs and totals. |
+| AND | Title/genre/key/BPM combined correctly. Deliberately conflicting conditions yielded data=[]/total=0/totalPages=0. |
+| Pagination/order | Two pages matched the actual createdAt/_id descending DB order. Total/totalPages remained correct, including beyond-last-page and unchanged no-filter defaults. |
+| Viewer context | Both authors' exact public artist fields and guest false state passed. Each viewer's own Like membership, filtered membership, and Unlike response agreed. |
+| Private access | The matching private fixture was absent even from its owner's filtered list; detail remained owner 200, guest/other user 404. |
+| Invalid queries/auth | Empty/overlong/repeated/nested/operator/unsupported parameters, bad BPM ranges, and bad pagination returned 400. Invalid Bearer and malformed Basic authorization returned 401. |
+| Actual DB filter/Swagger | MongoDB command monitoring observed identical Track find and count aggregate match filters for one combined HTTP request. Swagger exposed exactly the seven supported parameters. |
+
+Cleanup used exact manifest IDs, owner IDs, title, marker/description, and marked
+account identities; Track and fixture-Like removal shared one sequential
+transaction session. Foreign/unmarked records were refused. **Zero fixture Users,
+Tracks, or Likes remain**. Before/after fingerprints of all preexisting users,
+Tracks, Likes and the protected main account matched. The HTTP listener closed
+and dbDisconnected=true was recorded in finally. The spent temporary harness was
+deleted; no secret/token or raw preexisting-user document was saved.
+
+Swagger, README, proposal, and requirements coverage were updated. Static diff
+checks passed. Deployment-verification documentation was committed separately;
+the search/filter scope is reviewed for the authorized feature commit/push.
+Application tests were not rerun during commit preparation because code was
+unchanged; generated JSON reports and handoff artifacts remain outside the commit.
+
+## Released feature: public artist and likedByMe (October 18, 2026)
 
 Status: implemented and reviewed; **306/306 automated tests**, real-MongoDB local
 HTTP checks (10/10 groups), and rollback/recovery checks passed. **Actual Render
 verification passed 12/12 groups on October 18**, followed by verified fixture
 cleanup and main/dev synchronization. See the Render results below. The feature
 was committed as `cf6f60c`, documentation cleanup as `b90017d`, and released through
-PR #34 (feature -> dev) and PR #35 (dev -> main). Current branch: `dev`.
-Local/remote main and dev now share `d5501f15c1b2fa21a042d5664c883b09748e56ef`.
+PR #34 (feature -> dev) and PR #35 (dev -> main). Release synchronization finished
+on dev; local/remote main and dev shared
+`d5501f15c1b2fa21a042d5664c883b09748e56ef`.
 Generated reports remain local and ignored by Git; versioned summaries are
 self-contained. Earlier local milestones retain their original verification
 scope; statements that Render was pending describe those earlier checkpoints.
@@ -98,9 +180,9 @@ local main/dev and origin/main/dev all equal
 
 The checked feature tree matched the released main tree. Hash checks verified
 all 11 handoff/local-report files fingerprinted before synchronization were
-preserved across switches, including the new Render report. Current branch: dev.
-The documentation updates for
-these results remain local and uncommitted; no further release/deploy was made.
+preserved across switches, including the new Render report. Synchronization
+finished on dev. Documentation of these results was subsequently committed as
+aa2e469 before search/filter implementation; no further release/deploy was made.
 The contract remains **Draft** awaiting Phuc's final review.
 
 ### Phuc's original-contract feedback and approval boundary

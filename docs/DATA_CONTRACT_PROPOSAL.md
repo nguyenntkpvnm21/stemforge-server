@@ -210,13 +210,23 @@ Module 4 mentions Like and My Collection together but does not equate them or
 define an independent collection. Pagination and API details above are current
 code behavior, not invented requirements from the specification.
 
-## Low-dependency backend task while awaiting answers
+## Low-dependency backend task: local search/filters
 
-Propose extending GET `/api/tracks` with metadata filters on public Tracks only:
-genre/key, inclusive bpmMin/bpmMax, and literal title keyword q. Agree lightweight
-query semantics in a separate API proposal; no schema or response-shape changes.
-Keep existing defaults, pagination and deterministic ordering, use the same filter
-for data and total, reject invalid ranges, and escape literal search input.
-Add focused validation/controller tests and Swagger in that future task.
-Tags and most-liked ordering can follow. This task does not depend on roles,
-collection storage, stem-edit decisions, or download policy. Nothing implemented.
+Nguyen subsequently authorized this task. Implemented on
+`feature/track-search-filters`: q is a case-insensitive literal title
+substring; genre/key are case-insensitive full-value literal matches. Text is
+trimmed, nonempty, at most 100 characters before trimming, and accent-sensitive.
+bpmMin/bpmMax are inclusive positive finite plain decimal bounds (32 characters
+maximum); either may be omitted, equal bounds are exact, and inverted ranges
+return 400. These query-string rules do not change JSON write payload types.
+Repeated, nested/operator, or unsupported parameters return 400. All filters
+combine with AND and public-only visibility, with the same filter for data/total.
+Existing pagination, ordering, artist/likedByMe and authentication remain.
+
+372 automated tests and 10 real local HTTP/Atlas groups passed; fixture cleanup,
+preservation of existing data/main account, and DB disconnection were verified.
+See [current status](PROJECT_STATUS.md#local-searchfilters-feature-october-18-2026).
+Search/filtering has not been deployed or tested on Render. Tags and most-liked
+ordering remain next steps. This task does not depend on unresolved roles,
+collection storage, stem-edit, or download decisions and does not approve the
+overall Draft contract.

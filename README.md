@@ -15,7 +15,8 @@ Express, Mongoose, and MongoDB Atlas.
 - Authenticated audio uploads and transactional Like/Unlike with cascade deletion
 - Track responses with public artist information and current-user likedByMe
 
-Search/filtering, realtime features, and audio/stem replacement remain pending.
+Public Track title search and genre/key/BPM filtering are implemented locally.
+Tags, most-liked ordering, realtime features, and audio/stem replacement remain pending.
 
 ## Requirements
 
@@ -267,14 +268,36 @@ invalid/expired token or malformed header returns 401, as on Track detail.
 Results are ordered by `createdAt` descending, then `_id` descending
 to keep ordering consistent when creation timestamps are equal.
 
-Query parameters:
+Query parameters (each accepts one scalar value):
+
 - `page`: positive integer, default 1.
 - `limit`: integer from 1 to 100, default 12.
+- `q`: literal title substring, case-insensitive.
+- `genre`, `key`: case-insensitive full-value literal matches, with no fixed enum.
+- `bpmMin`, `bpmMax`: inclusive positive finite BPM bounds; either can be omitted.
+
+All supplied conditions combine with AND and `isPublic=true`, including for an
+authenticated owner. The same filter is applied to data and total. Text filters
+are trimmed and must be nonempty, with at most 100 characters before trimming.
+Regex characters such as `.*`, `+`, and `[]` are literal text. Matches preserve
+accent distinctions; musical keys receive no enharmonic normalization.
+
+BPM bounds accept plain decimal query strings of at most 32 characters, such as
+`120` or `120.5`, and must be greater than zero. Fractions need digits before and
+after the decimal point. Exponent/hex notation, signs, whitespace, nonfinite
+values, and bpmMin greater than bpmMax return 400. Equal bounds mean exact BPM;
+no integer rounding is applied. Omit unused filters rather than sending blanks.
+Use normal URL encoding for values, especially `#` and `+` in musical keys.
+
+Repeated values, arrays/nested query objects, MongoDB operators, and unsupported
+parameters return 400. Only page/limit/q/genre/key/bpmMin/bpmMax are accepted.
+Tags and selectable most-liked sorting remain next steps.
 
 Example:
 
 ```text
 GET /api/tracks?page=2&limit=5
+GET /api/tracks?q=demo&genre=Electronic&key=Am&bpmMin=120&bpmMax=140.5
 ```
 
 Successful responses use this structure:
@@ -291,11 +314,11 @@ Successful responses use this structure:
 }
 ```
 
-`total` counts public tracks only. When no public tracks exist,
+`total` counts public tracks matching every supplied filter. When none match,
 `totalPages` is zero. A page beyond the available results returns
 an empty `data` array.
 
-Invalid pagination parameters return HTTP 400 with a readable
+Invalid pagination or filter parameters return HTTP 400 with a readable
 `message`. Database errors are forwarded to the error middleware.
 Responses include `Cache-Control: no-store`.
 
@@ -361,16 +384,26 @@ Audio upload tests: `npm run test:uploads`.
 
 | Suite | Tests |
 | --- | --- |
-| Tracks | 170 |
+| Tracks | 236 |
 | Audio uploads | 59 |
 | Likes | 51 |
 | Local recovery runner | 26 |
-| Total | 306 |
+| Total | 372 |
 
 Controller tests cover public-query filters, sorting, pagination,
 invalid parameters, and forwarding database errors.
 Database queries are mocked; route tests use an ephemeral local HTTP server.
 These tests do not connect to MongoDB or upload audio.
+
+The search/filter addition also passed 10/10 real local HTTP + Atlas verification
+groups with two marked accounts and nine Track fixtures. Literal matching,
+inclusive BPM boundaries, combined filters, pagination/total, private access,
+viewer context, invalid queries, and identical real find/count filters passed.
+Cleanup verified zero fixture Users/Tracks/Likes, unchanged preexisting data/main
+account, and DB disconnection. See the
+[search verification summary](docs/PROJECT_STATUS.md#local-searchfilters-feature-october-18-2026).
+Search/filtering has not been checked on Render; the October 18 Render result
+below covers the earlier artist/likedByMe feature.
 
 ### Real MongoDB and local HTTP verification
 

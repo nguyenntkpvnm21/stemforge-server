@@ -143,6 +143,45 @@ test('returns tracks with the requested page and limit', async (t) => {
   assert.equal(next.mock.calls.length, 0);
 });
 
+test('uses one AND filter for data and total while retaining sort, pagination and viewer context', async (t) => {
+  const tracks = [structuredClone(sample)];
+  const { calls, enrich } = mockDatabase(t, { tracks, total: 5 });
+  const res = makeResponse();
+  const next = t.mock.fn();
+  const viewerId = '507f1f77bcf86cd799439099';
+  await listTracks({ query: {
+    q: ' Demo.* ', genre: ' Electronic ', key: 'Am', bpmMin: '120.5', bpmMax: '130', page: '2', limit: '2',
+  }, user: { _id: viewerId } }, res, next);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(calls.findFilter, {
+    isPublic: true, title: { $regex: 'Demo\\.\\*', $options: 'i' },
+    genre: { $regex: '^Electronic$', $options: 'i' }, key: { $regex: '^Am$', $options: 'i' },
+    bpm: { $gte: 120.5, $lte: 130 },
+  });
+  assert.equal(calls.findFilter, calls.countFilter);
+  assert.deepEqual(calls.sort, { createdAt: -1, _id: -1 });
+  assert.equal(calls.skip, 2);
+  assert.equal(calls.limit, 2);
+  assert.deepEqual(res.body.pagination, { page: 2, limit: 2, total: 5, totalPages: 3 });
+  assert.deepEqual(enrich.mock.calls[0].arguments, [tracks, viewerId]);
+  assert.equal(next.mock.calls.length, 0);
+});
+
+for (const query of [{ q: '' }, { genre: { $ne: '' } }, { bpmMin: '140', bpmMax: '120' }, { isPublic: 'false' }]) {
+  test('invalid filters return 400 before any database reads: ' + JSON.stringify(query), async (t) => {
+    const { find, count, enrich } = mockDatabase(t);
+    const res = makeResponse();
+    const next = t.mock.fn();
+    await listTracks({ query }, res, next);
+    assert.equal(res.statusCode, 400);
+    assert.equal(typeof res.body.message, 'string');
+    assert.equal(find.mock.calls.length, 0);
+    assert.equal(count.mock.calls.length, 0);
+    assert.equal(enrich.mock.calls.length, 0);
+    assert.equal(next.mock.calls.length, 0);
+  });
+}
+
 const invalidCases = [
   [
     'rejects page zero',
