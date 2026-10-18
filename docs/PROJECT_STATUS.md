@@ -18,20 +18,90 @@ The Track/Stem contract remains a draft awaiting Phuc's review. Audio/stem
 replacement and orphan Cloudinary asset cleanup remain pending. Cloudinary audio
 URLs use public delivery; Track visibility does not protect those URLs.
 
-## Current local feature: public artist and likedByMe (October 18, 2026)
+## Current feature: public artist and likedByMe (October 18, 2026)
 
 Status: implemented and reviewed; **306/306 automated tests**, real-MongoDB local
-HTTP checks (10/10 groups), and rollback/recovery checks passed. The feature was
-committed and pushed as `cf6f60c` on October 18. Generated JSON reports are now
-kept locally and ignored by Git; the results below are self-contained. This
-documentation cleanup does not change application logic or access the database.
-No PR merge or deployment is included. **Render verification for this feature
-remains pending.** Earlier dated sections retain their original results.
-Branch: `feature/track-response-context`, based on released `7d6f2c6`.
+HTTP checks (10/10 groups), and rollback/recovery checks passed. **Actual Render
+verification passed 12/12 groups on October 18**, followed by verified fixture
+cleanup and main/dev synchronization. See the Render results below. The feature
+was committed as `cf6f60c`, documentation cleanup as `b90017d`, and released through
+PR #34 (feature -> dev) and PR #35 (dev -> main). Current branch: `dev`.
+Local/remote main and dev now share `d5501f15c1b2fa21a042d5664c883b09748e56ef`.
+Generated reports remain local and ignored by Git; versioned summaries are
+self-contained. Earlier local milestones retain their original verification
+scope; statements that Render was pending describe those earlier checkpoints.
 Initial inspection found no tracked changes or unfinished search/filter code;
 only the existing untracked handoff/review/evidence files. They were preserved.
-The release synchronization and Render results below describe October 17's
-release, not deployment verification of this new feature.
+The separately labeled October 17 Like-release results are historical; the
+October 18 Render section verifies the artist/likedByMe feature itself.
+
+### Actual Render verification and cleanup (October 18, 2026)
+
+Target: https://stemforge-server.onrender.com. Executed
+**19:25:53-19:26:11 Asia/Saigon** (12:25:53-12:26:11 UTC), marker
+`sf-context-20261018122553-1612e91f`. A disposable local harness sent real HTTPS
+requests to Render, using Render-issued registration/login tokens validated with
+`/api/auth/me`. Exact marked fixture identities were matched against privately
+configured Atlas before Track checks. No local application server or JWT signing
+secret was used. HTTP behavior and the deployed Swagger confirmed the feature;
+the service's health endpoint does not expose a deployment commit SHA.
+
+**12/12 groups passed, zero failed or blocked:**
+
+| Check | Actual Render result |
+| --- | --- |
+| Authentication and DB identity | Two disposable accounts registered, logged in, passed /auth/me, and matched exact Atlas fixture identities. |
+| POST response | Three successful Track creates returned artist with exactly _id/username/avatarUrl and likedByMe=false; both HTTPS and null avatar cases passed. |
+| Guest list/detail | Public fixtures returned correct public author fields only and likedByMe=false; no private User fields appeared. |
+| Two-account membership and counters | Before/after Like and Unlike, list/detail reflected each viewer independently, with guest false. Repeated Like/Unlike remained idempotent; Like responses and stored counters/membership agreed. |
+| Public/private access | Guest, owner, and other-user lists remained public-only. Private detail was 200 for owner and 404 for guest/other user; the owner's private Like state was correct. Foreign PATCH returned 404. |
+| Authorization and IDs | Invalid Bearer and malformed Basic authorization on list returned 401. Invalid Track ID returned 400; absent Track returned 404; guest POST/PATCH returned 401. |
+| PATCH response | artist stayed correct; likedByMe was false with only the other account's Like, true after owner Like, then false after owner Unlike. Metadata updates succeeded. |
+| Response-only inputs | POST/PATCH with artist or likedByMe returned 400. Rejected POSTs created no Track; stored fixture metadata fingerprint was unchanged after rejected PATCHes. |
+| Missing author | One explicit marked DB fixture had no matching User. Render list/detail retained Track/artistId with artist=null; a valid viewer's Like still produced likedByMe=true. |
+| Stored shape | Raw Atlas reads confirmed no artist or likedByMe field in any created Track fixture. |
+| DELETE cascade | A foreign delete returned 404; owner DELETE returned empty 204 and removed the Track plus Likes from both accounts. Subsequent detail returned 404. |
+| Deployed Swagger | Public artist allowlist, read-only response fields, rejected create/PATCH inputs, optional auth/401, and DELETE Like cascade matched the deployed documentation. |
+
+The local-only manifest records **85 HTTP responses** during fixture verification
+and cleanup, in addition to three read-only preflight requests (health, Swagger,
+invalid-token list). It records verification passed with expected/completed=12,
+status=passed, renderTested=true, cleanup/preservation passed, and
+dbDisconnected=true. The JSON report is ignored and is not required to read this
+summary on GitHub.
+
+Created two fixture Users and four Tracks (three through Render POST, one direct
+missing-author fixture); two negative POST fixtures were rejected. Cleanup was
+limited to exact fixture IDs, marker, title, and owner/account identities. Normal
+Tracks were removed through the owner-authenticated Render API with Like cascade;
+the missing-author fixture was removed transactionally by exact DB scope. Only
+the two disposable accounts were deleted. **Zero fixture Users, Tracks, or Likes
+remain.** Before/after fingerprints of all preexisting User/Track/Like documents
+matched, including the protected main account. DB disconnected in finally.
+
+No Cloudinary assets, secret files, application changes, or production fault
+injection were involved. The temporary harness was deleted after successful
+cleanup. Enrichment-failure rollback and internal query batching remain supported
+by the earlier local evidence; neither was inferred from production internals or
+retested through fault injection on Render. The previous 306 automated tests were
+not rerun because application/test/dependency code was unchanged.
+
+### Main/dev synchronization after Render verification (October 18, 2026)
+
+Tracked working tree was clean before synchronization. After the successful
+Render checks, cleanup, and preservation checks, ran the documented sequence:
+switch main -> pull --ff-only origin main -> switch dev -> pull --ff-only origin
+dev -> merge --ff-only main -> push origin dev. Every step succeeded without a
+force push, reset, or new merge commit. Remote refs were independently checked:
+local main/dev and origin/main/dev all equal
+`d5501f15c1b2fa21a042d5664c883b09748e56ef` (release PR #35).
+
+The checked feature tree matched the released main tree. Hash checks verified
+all 11 handoff/local-report files fingerprinted before synchronization were
+preserved across switches, including the new Render report. Current branch: dev.
+The documentation updates for
+these results remain local and uncommitted; no further release/deploy was made.
+The contract remains **Draft** awaiting Phuc's final review.
 
 ### Phuc's original-contract feedback and approval boundary
 
@@ -141,8 +211,8 @@ The loopback HTTP server closed; `dbDisconnected=true` is recorded after finally
 No application or test code needed correction, so the existing 270-test automated
 result remains the previously recorded run rather than a new run in this step.
 `node --check scripts/check-local-track-responses.js` and `git diff --check` passed.
-**Render has not been checked for artist/likedByMe**; previous Like release
-verification must not be presented as verification of this uncommitted feature.
+At this local milestone, Render had not been checked for artist/likedByMe; the
+later October 18 Render section above records the actual production requests.
 
 No disposable token/response files were created. Retain the runner because it is
 reusable for future local response regression checks, with read-only default,
@@ -169,9 +239,9 @@ local manifests are evidence, not unfinished fixture cleanup.
 
 Application source fingerprints matched before/after this repeat run; no logic
 or test changes were needed and the earlier 270 automated tests were not rerun.
-The previous handoff files and Render evidence retain their hashes. **Render is
-still untested for this feature.** No search/filter work, staging, commit, push,
-or deployment occurred during that repeat verification.
+The previous handoff files and Render evidence retain their hashes. **Render was
+still untested at that repeat-run checkpoint.** No search/filter work, staging,
+commit, push, or deployment occurred during that repeat verification.
 
 ### Recovery runner corrections (October 18, 2026)
 
@@ -219,8 +289,8 @@ No application fault injection, Cloudinary assets, or Render requests were used.
 The temporary fixture-setup harness was deleted after the recovery scenario;
 retain reusable helpers/tests/runner and local-only nonsecret reports. Earlier HTTP
 manifests were not changed. Source fingerprints for application files are
-unchanged. `node --check` and `git diff --check` passed. **Render remains untested
-for this feature; no commit, push, or deployment occurred.**
+unchanged. `node --check` and `git diff --check` passed. **Render was untested at
+this recovery-fix checkpoint; no commit, push, or deployment occurred then.**
 
 ### POST/PATCH enrichment rollback correction (October 18, 2026)
 
@@ -275,8 +345,9 @@ All these runs ended with zero fixture users/Tracks/Likes, matching preexisting
 data/main-account fingerprints and dbDisconnected=true. No Cloudinary assets or
 Render requests were made. The temporary local fault harness was deleted.
 Nonsecret generated reports remain local-only; the results are summarized above.
-No search/filter changes or deployment occurred. Render has not verified
-this feature. The final PR scope after report cleanup is 23 versioned files below.
+No search/filter changes or deployment occurred during that local check. Render
+verification was pending then; its later actual results are recorded above.
+The final feature PR scope after report cleanup was 23 versioned files below.
 
 ### Final feature PR scope after report cleanup
 
@@ -326,11 +397,10 @@ depending on local report files. No spent temporary harness is retained.
 Only documentation and ignore/tracking rules changed during PR cleanup, so the
 successful 306-test run and actual Atlas/HTTP results above were not rerun.
 
-Next: push this documentation cleanup to feature/track-response-context and review
-the merge-commit PR into dev followed by dev into main. The second PR must
-wait for the feature to reach dev. No PR is merged automatically. Phuc's final
-confirmation of the updated Draft contract (including missing-author null) is
-still pending. Render verification must follow deployment of this feature.
+Completed since that PR preparation: documentation cleanup pushed as b90017d,
+PR #34/#35 merged upstream, actual Render verification passed, fixtures removed,
+and main/dev synchronized as recorded above. Phuc's final confirmation of the
+updated Draft contract (including missing-author null) is still pending.
 
 ## Historical evidence supplied in the handoff
 
@@ -346,7 +416,7 @@ These are handed-over results, not checks rerun in this session:
   and documented response statuses were checked.
 - Previous temporary local scripts/manifests were removed; main account was kept.
 
-## Current session observations
+## Historical session observations (October 17, 2026)
 
 - Initial branch: `feature/track-like-api`, commit `205ed2d`; working tree clean.
 - `AGENTS.md` and this status file were absent on disk at session start and have
@@ -360,7 +430,7 @@ These are handed-over results, not checks rerun in this session:
 - Render Like verification, cleanup, main-account preservation, and main/dev
   synchronization are complete. See the actual results below.
 
-## Render verification completed in this session
+## Historical Render Like verification (October 17, 2026)
 
 Executed October 17, 2026, 14:18:57-14:19:17 Asia/Saigon (07:18:57-07:19:17 UTC).
 All eight verification groups passed; no requested check failed or remains
@@ -418,7 +488,7 @@ All **245 tests passed, zero failed**:
 These results were independently rerun; the local real-database rollback checks
 described above remain historical evidence and were not rerun.
 
-## Git synchronization completed
+## Historical Git synchronization (October 17, 2026)
 
 Ran the documented sequence after successful Render checks and cleanup:
 switch main, pull main with `--ff-only`, switch dev, pull dev with `--ff-only`,

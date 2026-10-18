@@ -1,7 +1,9 @@
 # Data contract proposal for discussion with Phuc
 
-**Status: Draft - not approved.** Updated October 18, 2026. Released baseline:
-backend `7d6f2c6`; artist/likedByMe are local feature changes, not deployed yet.
+**Status: Draft - not approved.** Updated October 18, 2026. Released backend:
+`d5501f1`; artist/likedByMe passed real Render HTTP verification (12/12 groups)
+with fixture cleanup and main-account preservation verified. Deployment/testing
+does not constitute Phuc's approval of the updated contract.
 Read `docs/data-contract.md` and `.json` from branch `docs/data-contract` at
 `9e041cd` with `git show`; no checkout or replacement of uncommitted files.
 Retain existing field names and response wrappers. The old draft's statement
@@ -32,8 +34,13 @@ session-bound reads and response sent after commit. Subsequent real-Atlas checks
 verified rollback on both author/membership lookup failures and successful
 responses, plus recovery of orphan fixture Likes without upgrading incomplete
 verification. The latest automated total is 306 (Tracks 170, Likes 51, uploads 59,
-recovery 26). The new response fields have not been deployed or checked on Render,
-and client integration is not yet certified. See PROJECT_STATUS.md for evidence.
+recovery 26). Subsequent actual Render requests passed all 12 groups, covering
+response/privacy/input rules, per-account Like state, public/private access,
+missing authors, cascade, and deployed Swagger. Fixture cleanup and preservation
+of existing data were verified; main/dev were synchronized to d5501f1. Failure
+rollback and query batching retain their local verification scope; no production
+fault injection was used. Client integration is not yet certified. See the
+[Render results](PROJECT_STATUS.md#actual-render-verification-and-cleanup-october-18-2026).
 
 ### Track/Stem responses and inputs
 

@@ -395,7 +395,9 @@ docs/verification are ignored by Git and retained locally for recovery/audit.
 Keep an interrupted run's manifest until cleanup is verified. The versioned
 [project status](docs/PROJECT_STATUS.md#postpatch-enrichment-rollback-correction-october-18-2026)
 summarizes the actual 306-test, Atlas/HTTP, rollback, and recovery results without
-requiring those local reports. Render verification for this feature is pending.
+requiring those local reports. The
+[October 18 Render verification](docs/PROJECT_STATUS.md#actual-render-verification-and-cleanup-october-18-2026)
+passed 12/12 groups, with fixture cleanup and main-account preservation verified.
 
 If a run is interrupted, retain its manifest and recover with
 `node scripts/check-local-track-responses.js --cleanup <manifest-path>`.
