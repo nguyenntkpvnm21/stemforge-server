@@ -124,5 +124,22 @@ writes are not observed. Multiple workers/instances or overlapping old/new deplo
 processes do not share counts/queues/broadcasts; coherence during overlap is not
 guaranteed. Scaling needs shared adapter/presence and event consistency design;
 polling across instances also needs sticky sessions. Redis, outbox, durable replay,
-multi-instance and playback heartbeat are outside MVP. **Render realtime has not
-been verified.**
+multi-instance and playback heartbeat are outside MVP.
+
+## Deployment verification (October 19, 2026)
+
+Render Live **86aa3cb** passed **12/12 scoped REST/Socket.IO groups**, including
+public/owner-private access, invalid-token rejection, WebSocket/polling, connection
+counts, duplicate operations, transport reconnect with explicit rejoin, shared
+Like events, concurrent operations, postcommit private/delete revocation and room
+epoch recreation. A separate raw Engine.IO request with a disallowed Origin
+returned **403 / code 4 / Forbidden**. The fixture run recorded 53 HTTPS responses
+and 76 ACKs, followed by verified cleanup/data/index preservation and DB disconnect.
+
+Natural JWT expiry, retry/rollback, publisher failure, process shutdown/restart and
+rate/pending bounds were not injected/exercised on Render; earlier local tests
+cover the implemented failure/lifecycle behavior. This is not a multi-instance,
+load or browser/Vercel integration result. Transport failures/retries and prior
+cleaned attempts are recorded separately in [PROJECT_STATUS.md](PROJECT_STATUS.md).
+Deployment verification does not approve this **Draft backend event proposal** or
+the Draft Track/Stem contract.
