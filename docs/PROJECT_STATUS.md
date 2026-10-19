@@ -2,25 +2,174 @@
 
 Last updated: October 19, 2026 (Asia/Saigon).
 
-## Implemented functionality
+## Current summary and backlog (release 86aa3cb)
 
-Authentication (register/login/me, JWT, shared authentication rate limit), public
-Track metadata/tag filtering, newest/most-liked ordering and pagination,
-authenticated owned-Track listing, visibility-aware detail,
-authenticated creation, owner-only
-metadata update/deletion, audio upload, and transactional Like/Unlike APIs.
+Render Live: **86aa3cb2d2f5e56a5f142cacb79128c7cb74385a**, confirmed by Nguyen.
+`main`, `dev`, `origin/main` and `origin/dev` are synchronized to this release;
+current branch is `dev`. Four release-document updates remain uncommitted.
+This summary describes the current state; dated checkpoints below retain their
+original scope, pending-work statements and separate verification evidence.
 
-Like endpoints are authenticated GET/PUT/DELETE `/api/tracks/:trackId/like` with
-no request body. Public Tracks and the current owner's private Tracks are
-accessible; another owner's private Track returns 404. PUT/DELETE are idempotent.
-Membership and counter updates use transactions; DELETE Track cascades Likes in
-the same transaction. Startup awaits the unique Track/user Like index.
+### Backend: implemented scope and Render-verified behavior
 
-The Track/Stem contract remains a draft awaiting Phuc's review. Audio/stem
-replacement and orphan Cloudinary asset cleanup remain pending. Cloudinary audio
-URLs use public delivery; Track visibility does not protect those URLs.
+- Authentication: register/login/me, JWT, shared auth rate limit and ownership
+  checks. Track create/detail/metadata PATCH/DELETE enforce public/private access.
+  Responses include the public artist allowlist and viewer-specific likedByMe.
+- Discovery: literal title search, genre/key, inclusive BPM range, tag matching,
+  AND filters, newest/mostLiked ordering and pagination. The public list remains
+  public-only; `/api/tracks/mine` requires auth and includes the owner's public
+  and private Tracks with an owner-scoped total.
+- REST Like/Unlike: authenticated state, idempotent mutations, transactional
+  membership/counter updates and transactional Like cascade on Track deletion.
+  Public Tracks and the owner's private Tracks are accessible; foreign private
+  Tracks remain hidden. Existing response shapes are preserved.
+- Realtime MVP: shared HTTP/Socket.IO server, access-controlled Track rooms,
+  connection counts, reconnect/rejoin snapshots, committed Like broadcasts and
+  privacy/deletion revocation. **12/12 scoped Render groups passed**, with
+  **53 HTTPS responses and 76 ACKs**; fixture cleanup and data/index preservation
+  passed. Counts measure connections, not active audio playback. Scope is one
+  process/instance; epoch/seq provide no durable delivery.
 
-## Track realtime MVP (October 19, 2026; local, unreleased)
+Audio upload is implemented as one MP3/WAV/FLAC per request, returning metadata
+for Track creation with 1-4 ordered stems and stable stemId values. The realtime
+Render run used placeholder audio URLs and exercised no upload/Cloudinary
+operation; it does not establish completion of a multi-stem upload workflow.
+
+Render verification is scoped to the recorded requests. Natural JWT expiry,
+transaction retry/rollback, publisher failure, shutdown/restart and rate/pending
+bounds retain separate local evidence; they were not exercised in the realtime
+Render run. See the release checkpoint below for retries, cleanup and test counts.
+
+### Frontend, mixer and browser integration not yet verified
+
+- Phuc's frontend deployment, dashboard/discovery/Like UI and useTrackRoom
+  integration are not established by this backend repository. Client reconnect,
+  rejoin, stale ACK handling and personal heart-state refresh need joint checks.
+- Real multi-stem mixer playback, aligned audio, waveform/volume/mute/solo/seek,
+  browser audio permissions and the complete upload-to-playback flow remain
+  unverified here. Backend stem ordering/units are not proof of mixer completion.
+- Configured-Origin HTTP/Socket checks do not establish actual Vercel-to-Render
+  browser CORS, audio delivery or download behavior. Joint browser verification
+  with agreed demo audio is still pending.
+
+### Open group decisions and remaining backlog
+
+| Topic | Current boundary | Decision/work to agree |
+| --- | --- | --- |
+| Collection | Owned Tracks are listed by /mine; there is no collection or current-user liked-Track listing API. | Decide whether My Collection means liked Tracks or an independent collection, then agree its scope/API. Do not equate ownership with Likes. |
+| Multiple-stem upload | One audio file per request; Track creation accepts 1-4 stems. | Agree a coordinated single-file client flow versus a batch endpoint, including partial-failure/cleanup behavior. The product requirement for multiple stems does not itself mandate one HTTP request. |
+| Stem management/replacement | Track PATCH updates metadata and excludes stems. | Agree add/remove/reorder/replace operations and asset cleanup policy before extending inputs/endpoints. General orphan Cloudinary cleanup remains technical follow-up. |
+| Download | isDownloadable is stored, but Cloudinary audio URLs use public delivery. Track API visibility does not protect a previously disclosed audio URL. | Agree UI gating versus enforced download authorization/delivery and the guarantees expected for private Tracks. No stronger protection is claimed. |
+| Contract approval | Track/Stem contract and realtime event proposal remain **Draft**, not group-approved. | Review the updated artist/likedByMe/missing-author rules and event/ACK/reconnect conventions with Phuc, then approve and mirror the agreed contract. Deployment success is not approval. |
+
+Next work is to settle these decisions with Phuc, verify the browser/mixer flows,
+and scope the agreed backend gaps. These items record pending work and group
+choices; they do not assign unspecified responsibilities or select an API design.
+
+## Released Track realtime MVP (October 19, 2026)
+
+**Actual Render verification passed 12/12 scoped groups**, followed by verified
+cleanup and fast-forward-only main/dev synchronization. Feature commit **3a7e91f**
+was merged through **PR #42** (feature -> dev, **606059d**) and **PR #43**
+(dev -> main). Release/Live commit: **86aa3cb2d2f5e56a5f142cacb79128c7cb74385a**.
+Nguyen confirmed this Live hash in Render. Health/Socket.IO do not expose a build
+SHA; deployment attribution uses that confirmation and Git merge history, not an
+inference from health status. Commit **f3e54d0** remains intact.
+
+Both the Track/Stem contract and [event proposal](REALTIME_EVENTS.md) remain
+**Draft**, not group-approved. This verification does not settle collection,
+stem-management, download or frontend integration decisions.
+
+### Actual Render requests and fixture lifecycle
+
+Target: https://stemforge-server.onrender.com. Successful fixture run:
+**October 19, 10:12:40-10:15:13 Asia/Saigon**
+(03:12:40-03:15:13 UTC), marker `sf-context-20261019031240-be6f30d1`.
+Recorded **53 HTTPS responses and 76 Socket.IO ACKs**, including fixture cleanup.
+Read-only preflight/diagnostic requests and earlier attempts are outside these
+counts. A separate disallowed-Origin Engine.IO probe returned HTTP **403**, with
+`{ code: 4, message: "Forbidden" }`.
+
+Two disposable accounts registered/logged in through Render and passed /auth/me;
+their exact identities matched the privately configured Atlas before Track setup.
+Only Render-issued tokens were used; passwords/tokens stayed in memory. REST used
+curl.exe IPv4 with secrets in stdin config, never command arguments/files/logs.
+Socket.IO used the real remote server with its normal DNS resolution, WebSocket
+and polling transports. No local app listener or local JWT signing was used.
+For REST only, the harness selected DNS-advertised public IPv4 **216.24.57.16**;
+the original hostname/SNI and normal TLS verification were retained. This is a
+record of that check, not a permanent address recommendation for clients.
+
+Created **three marked Tracks** through Render: A's public/private Tracks and B's
+public Track (initially two public, one private). HTTPS placeholder audio URLs
+created no Cloudinary assets. No DDL, production fault injection, restart,
+application instrumentation or direct metadata mutation was introduced.
+
+| Group | Actual Render result |
+| --- | --- |
+| Accounts/auth/transports | Two accounts and /auth/me matched Atlas. Invalid, empty and null tokens rejected with UNAUTHENTICATED. Configured-Origin WebSocket/polling connections succeeded; disallowed Origin was also independently confirmed as HTTP 403. |
+| Public/private access | Guest/foreign private room and detail denied; owner allowed. Public list stayed public-only for guest/A/B, with initial filtered total=2. Guest Like REST required authentication. |
+| Snapshot/event fields | Exact snapshot allowlist, numeric counters, UUID epoch and initial topic seq passed. Presence payload contained only Track/count/epoch/seq, without account data. |
+| Presence | Three initial connections, fourth tab, duplicate joins/leaves, stale leave, room switching and disconnect counts passed. Multiple tabs counted separately. |
+| Reconnect/rejoin | Transport close caused an actual client reconnect; it restored no room automatically. Explicit rejoin returned current count/Like snapshot. |
+| Like idempotency/context | Repeated PUT/DELETE emitted only for real membership changes. REST isLiked/likesCount and Track artist/likedByMe remained correct for both accounts. Shared Like payload excluded identity/personal fields. |
+| Concurrent Likes | Four concurrent PUTs from A/B/A/B produced two memberships/count=2 and two events. Two concurrent A Unlikes removed A once; B remained liked and count=1. Observed Like seq was exactly 1..5 across the full cycle. |
+| Invalid/no-ACK events | Six malformed payloads returned INVALID_PAYLOAD. No-ACK join was ignored; uppercase ID normalized. |
+| Concurrent switches | Concurrent moves and opposite room switches retained one room per socket, expected counts and independent Track scope. |
+| Private transition | PATCH-private plus concurrent join evicted guest/foreign sockets with NOT_FOUND; subsequent joins/details remained denied. Owner stayed with count=1. Own list retained both Tracks; public filtered total fell to 1. |
+| DELETE/cascade | DELETE plus concurrent owner join revoked owner after success; further join returned NOT_FOUND. Track and the remaining fixture Like were gone; own-list total fell to 1 and B's public room remained usable. |
+| Lifecycle/REST/storage | Last leave/rejoin created a fresh epoch with count/listenersSeq=1, likesSeq=0. NUL/bad-sort/client-owner/repeated-page queries returned 400, invalid list token 401. Stored remaining counters matched memberships; artist/likedByMe were absent from Track storage. |
+
+### Network limitations and separate earlier attempts
+
+The successful run needed **four Socket.IO connection retries** and **five curl
+timeout retries** (one POST and four GET attempts). Curl recorded zero request and
+upload bytes for all five failed attempts; POST was retried only under that
+condition, without replaying an uncertain mutation. These transport failures are
+retained in the local report and are not additional passing API responses/tests.
+
+Three earlier scoped-run reports remain failed, each with verified zero fixtures,
+unchanged main/data/index fingerprints and DB disconnect. The first passed six
+groups, then stopped on an unclassified request Error in concurrent Likes; no
+application failure diagnosis is inferred from that Error. Two later runs stopped
+at registration HTTPS ETIMEDOUT with zero HTTP responses. Additional preflight
+transport/Atlas failures occurred before fixture creation. These attempts are not
+combined into the final 12/12 groups or the automated test counts.
+
+### Cleanup, scope and Git
+
+Cleanup was bounded by manifest IDs, exact markers/titles/descriptions, owners and
+account identities. Foreign Likes would block cleanup. Missing Track fixtures
+still allowed bounded fixture-Like recovery. **Zero fixture Users/Tracks/Likes
+remain**; all preexisting User/Track/Like fingerprints, protected main account and
+index catalogs matched. DB returned to **1 User, 0 Tracks, 0 Likes**. All **26**
+preexisting handoff/report files retained hashes. Harness sockets disconnected;
+DB disconnected in finally. Remote internal timer/map counts were not exposed and
+are not claimed inspected. The temporary harness was removed; reports remain
+ignored/local and this summary is readable independently on GitHub.
+
+Natural JWT expiry, transaction retry/rollback, postcommit publisher failure,
+process shutdown/restart and rate/pending bounds were **not** exercised on Render.
+Earlier separate repository runs remain **37 realtime**, **317 Track**, **51 Like**
+and **59 upload** tests, plus the prior **8/8 local HTTP/Socket/Atlas groups**.
+No automated tests were rerun for this documentation-only release verification,
+and external review probes are not counted as repository automated tests.
+Configured-Origin checks are not proof of Phuc's browser/Vercel integration.
+MVP still requires one process/instance; no multi-instance, load or playback test
+is claimed. Epoch/seq remain best effort, not durable delivery.
+
+After verified cleanup, tracked working tree/staging were clean. Sequential fetch,
+main ff-only origin/main, dev ff-only origin/dev, dev ff-only main and normal
+non-force dev push succeeded. **main/dev/origin/main/origin/dev all equal
+86aa3cb**; current branch is **dev**. Four release-document updates are left
+uncommitted for the next authorized documentation commit. No PR merge or deployment
+was performed by this verification.
+
+## Track realtime MVP (October 19, 2026; pre-release local checkpoint)
+
+The following records the earlier checkpoint. The release/Render results above
+supersede its then-uncommitted/unreleased statements; the local evidence remains
+separate and unchanged.
 
 Branch: `feature/track-realtime`, based on synchronized dev/main **72424fa**.
 Commit **f3e54d0** separately records the four My Tracks Render documents with

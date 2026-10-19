@@ -18,8 +18,9 @@ Express, Mongoose, and MongoDB Atlas.
 Public Track title search and genre/key/BPM filtering are implemented and verified on Render.
 Tag filtering, most-liked ordering and NUL query validation are verified on Render.
 Authenticated owned-Track listing is verified on Render.
-Realtime MVP is implemented locally with automated and HTTP/Socket/Atlas checks;
-Render realtime remains unverified. Audio/stem replacement remains pending.
+Realtime MVP passed scoped REST/Socket.IO checks on Render Live 86aa3cb.
+See the realtime section for verified scope and remaining local-only checks.
+Audio/stem replacement remains pending.
 
 ## Requirements
 
@@ -953,7 +954,21 @@ Read [the Draft event proposal](docs/REALTIME_EVENTS.md) for payloads, epoch/seq
 stale ACK handling and reconnect/rejoin. Phuc has not approved it. Epoch/seq do not
 provide durable delivery. Redis/outbox, multiple instances and playback heartbeat
 are outside MVP. Optional 30-second client resync remains a proposal.
-Render realtime is unverified.
+Render Live **86aa3cb** passed **12/12 scoped groups** on October 19, 2026:
+guest/owner-private access, WebSocket/polling and authentication, presence,
+reconnect/rejoin snapshots, Like idempotency/concurrency, room switching,
+committed privacy/deletion revocation, cascade and epoch recreation. The fixture
+run recorded **53 HTTPS responses and 76 ACKs**; cleanup left zero temporary
+Users/Tracks/Likes and preserved existing data, protected account and indexes.
+DB disconnected; generated reports remain local/ignored. Earlier transport-failed
+runs were cleaned and remain separate from this successful run.
+
+JWT natural expiry, retry/rollback, publish-failure handling, process shutdown and
+rate/pending bounds retain local test evidence; they were not newly exercised on
+Render. No production fault injection or restart was performed. The configured
+Origin was tested; Phuc's browser/Vercel integration and multi-instance operation
+remain unverified. See [PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for actual scope,
+network retry details and separate historical test runs. Contracts remain Draft.
 
 `npm run test:realtime` tests real loopback connections, auth/presence/lifecycle and
 transaction retry/rollback/publish failure. Existing regression commands remain
