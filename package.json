@@ -8,7 +8,7 @@
     "test": "npm run test:ci",
     "test:ci": "npm run test:tracks && npm run test:uploads && npm run test:likes && npm run test:realtime && npm run test:local-recovery && npm run test:index",
     "test:index": "node --test --test-reporter=spec tests/track-most-liked-index.test.js",
-    "dev": "nodemon src/server.js",
+    "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "test:models": "node --test --test-reporter=spec tests/track-model.test.js",
     "test:local-recovery": "node --test --test-reporter=spec tests/local-track-response-recovery.test.js",
@@ -35,7 +35,6 @@
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14",
     "socket.io-client": "^4.8.4"
   }
 }
