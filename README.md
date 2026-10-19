@@ -65,6 +65,26 @@ Expected response:
 
 Keep `.env` private. Commit only `.env.example` with empty credential fields.
 
+### Development watch mode (Node.js 24)
+
+`npm run dev` uses `node --watch src/server.js`, with no additional watcher
+dependency. Use Node.js 24 for development and CI. `npm start` still runs
+`node src/server.js` without watching.
+
+Node watches the entry point and modules loaded through `require`/`import`;
+changes to those files restart the application. JSON loaded with `require`
+or a JSON import is watched too. Arbitrary JSON files read with `fs`, unimported
+files and `.env` read by dotenv are not automatically watched. Changing `.env`
+requires a manual restart; inherited shell variables still take precedence over
+dotenv values.
+
+To restart manually, press **Ctrl+C**, wait for the watcher and application to
+stop and release the port, then run `npm run dev` again. The nodemon `rs` command
+is not available. Watch mode does not guarantee graceful signal handling on every
+OS; in particular, Windows process termination differs from POSIX signals.
+No `--watch-path` is used, so the command is also supported on Linux.
+See the [Node.js watch-mode documentation](https://nodejs.org/docs/latest-v24.x/api/cli.html#--watch).
+
 ## Render deployment
 
 | Setting | Value |
