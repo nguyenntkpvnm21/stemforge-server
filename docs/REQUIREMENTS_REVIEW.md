@@ -31,6 +31,16 @@ owner/private-only totals, pagination, viewer context and 24 invalid queries.
 Cleanup and data/main-account/index preservation passed; DB disconnected and
 main/dev/origin refs were fast-forward synchronized to that release. Frontend
 dashboard integration remains unverified; the contract remains Draft.
+Realtime follow-up: PR #42/#43 released the backend MVP on Live **86aa3cb**, as
+confirmed by Nguyen. **12/12 scoped Render REST/Socket.IO groups** passed, with
+53 HTTPS responses and 76 ACKs in the successful fixture run. Cleanup, protected
+account/data/index preservation and DB disconnect passed; main/dev/origin refs
+were fast-forward synchronized. Earlier transport-failed runs are recorded
+separately in PROJECT_STATUS.md. The 37 realtime, 317 Track, 51 Like and 59 upload
+tests are earlier separate repository runs, not new Render/automated totals.
+Expiry, retry/rollback, publisher failure, shutdown and rate/pending bounds retain
+local evidence; multi-instance and browser/Vercel integration remain unverified.
+The event proposal and Track/Stem contract remain **Draft**, not group-approved.
 This review changes documentation only; it does not authorize implementation,
 change assignments, certify frontend completion, or create production data.
 
@@ -144,13 +154,13 @@ implementation in this tree, not proof that another repository has no work.
 | Owner's personal library/dashboard - section 3 Module 3; section 6 Phuc UI and week 5 | Backend Render verified; frontend integration unverified | Nguyen authorized GET /api/tracks/mine: mandatory auth, req.user._id scope, own public/private Tracks, page/limit, consistent owner data/total, newest/_id DESC and artist/likedByMe. Ten actual Render groups passed on 72424fa, including a private-only owner and rejected client scope changes; cleanup/data/main-account/index preservation passed. Public list stays public-only. Earlier local tests are recorded separately in PROJECT_STATUS.md; Phuc's dashboard integration remains unverified. |
 | Search Genre/BPM range/Key/tags/title keyword - section 3 Module 4; section 6 Nguyen explicitly Genre/BPM/Key | Implemented; Render verified October 18/19 | q/genre/key/BPM have October 18 Render evidence. Tag follow-up passed 12/12 actual Render groups on 559222a, including literal/full-element/case/trim tag matching, all-filter AND, data/total consistency and NUL validation. Cleanup/main-account/index preservation verified; see PROJECT_STATUS.md for separate historical automated/local results. |
 | Pagination and newest/most-liked ordering - section 3 Module 4; section 6 Nguyen | Implemented; Render verified October 19 | newest keeps createdAt/_id DESC; mostLiked uses likesCount/createdAt/_id DESC. Actual Render checks passed real Like counts, time/ID ties, pages and invariant totals. Existing compound index was verified without DDL; unhinted public ranking used IXSCAN without SORT. Cleanup, existing data/indexes and main account preservation passed. Not a load benchmark; see PROJECT_STATUS.md. |
-| Like/Unlike and count - section 3 Module 4; section 6 Nguyen | Present for REST | `src/services/track-like.service.js`, `src/models/TrackLike.js`, Like controller/routes. Earlier Render evidence covers permissions, idempotency, counters, concurrency, cascade, and cleanup. Socket broadcast is separate and missing. |
+| Like/Unlike and count - section 3 Module 4; section 6 Nguyen | REST and scoped realtime Render verified | REST responses/transactions remain unchanged. Actual Render checks on 86aa3cb passed idempotent/concurrent membership changes and shared like:updated broadcasts; private/deletion revocation and Like cascade passed. Retry/rollback and publish-failure evidence remains local. Payloads are a Draft backend proposal, not group approval. |
 | My Collection - section 3 Module 4 | Partial data foundation; listing missing | TrackLike stores membership and individual Track Like state is queryable, but no API lists a user's liked Tracks. Exact meaning of collection and its individual task split are unspecified; confirm whether it is the Like-derived collection rather than a separate saved list. |
 | Synchronized mixer, waveform, volume/mute/solo, seek - section 3 Module 2; section 6 Phuc | Needs verification in frontend | Backend returns ordered stems with names/URLs/duration. This Express repository cannot establish whether Wavesurfer, React controls, AudioContext user gesture handling, or sample/real-data synchronization work. |
 | CDN Range streaming - section 2; section 3 Module 4 architecture note | Backend URL delivery present; multitrack integration unverified | Cloudinary service uses resource_type=video and public upload delivery. Earlier handoff records a 206 Range check. This review did not repeat it or validate aligned demo stems and browser playback. No Express streaming proxy is required by the document. |
 | Creator sets download permission and listener downloads permitted stems - section 3 Module 1; section 4 isDownloadable | Partial; enforcement semantics unspecified | Boolean can be stored/changed, but no download authorization endpoint exists. Public `audioUrl` still permits fetching bytes independently of the flag. Whether UI action gating is sufficient needs confirmation. |
-| Socket.IO room track:{trackId}, listener counts, Like updates/reconnect behavior - section 3 Module 5; section 6 named assignments and week 7 | Missing in backend; client needs verification | No socket.io dependency or server initialization. `src/server.js` creates the HTTP server but has no rooms/events. Listener connection counts and both broadcasts are absent. Phuc's client hook/UI cannot be assessed here. |
-| Swagger for all endpoints - section 2; section 6 Nguyen/week 7 | Present for existing REST scope | Generated OpenAPI contains all 13 implemented method/path operations. It cannot document missing features as implemented. Socket event-contract documentation will be needed separately. |
+| Socket.IO room track:{trackId}, listener counts, Like updates/reconnect behavior - section 3 Module 5; section 6 named assignments and week 7 | Backend MVP scoped Render verified; client integration unverified | Socket.IO shares the HTTP server. Twelve actual Render groups on 86aa3cb passed guest/public and owner/private access, connection counts, duplicate operations, transport reconnect/explicit rejoin, concurrent Like updates/switches and committed privacy/deletion revocation. Counts measure connections, not audio playback. See REALTIME_EVENTS.md (Draft) and PROJECT_STATUS.md for scope, network retries, cleanup and local-only failure/lifecycle checks. No multi-instance support or Phuc client hook/UI completion is established. |
+| Swagger for all endpoints - section 2; section 6 Nguyen/week 7 | Present for existing REST scope; realtime proposal documented separately | Generated OpenAPI documents implemented REST operations. Socket events/ACKs, permissions, epoch/seq, stale ACK handling and reconnect behavior are in REALTIME_EVENTS.md, explicitly Draft pending group review. |
 | Client repository, Vercel site, complete upload -> discovery -> mixer flow - section 2; section 6 Phuc and weeks 5-9 | Needs verification | Client code/live URL not supplied in this workspace; do not infer frontend progress or production CORS/real-audio flow from backend success. |
 | English final deliverables, slides, report, demo assets - sections 5-6 and risks table | Partial / needs verification | Code/Swagger use English; README has stale functionality/test summaries. Final report/slides/presentation and licensed demo data are not established by this repository. Individual assignment is unspecified. |
 
@@ -219,10 +229,11 @@ implementation in this tree, not proof that another repository has no work.
 5. **Agree and provide the collection backend.** If My Collection is Like-derived,
    propose a paginated current-user liked-Track list with visibility handling.
    The exact collection assignment/design remains unspecified until agreed.
-6. **Implement Socket.IO server integration.** Define Track room access and join/
-   leave behavior, count connections as specified, emit listeners:count, and emit
-   like:updated only after successful committed state changes. Coordinate payloads
-   and reconnect behavior with Phuc's useTrackRoom; underlying REST Like is ready.
+6. **Agree and verify Socket.IO client integration.** Backend rooms, connection
+   counts, committed Like events and scoped Render checks are complete. Review
+   the Draft event proposal with Phuc, integrate useTrackRoom with reconnect/rejoin,
+   stale ACK handling and heart-state refresh, then verify the browser flow. No
+   new backend scope or individual assignment is inferred from deployment success.
 7. **Verify integration and backend delivery.** Maintain English Swagger/tests for
    each addition, verify actual Vercel-to-Render CORS, and jointly demonstrate
    upload -> discover -> synchronized mixer -> permitted download and realtime
