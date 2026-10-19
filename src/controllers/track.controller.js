@@ -6,6 +6,7 @@ const {
 const mongoose = require('mongoose');
 const TrackLike = require('../models/TrackLike');
 const trackResponseService = require('../services/track-response.service');
+const trackEvents = require('../services/track-events.service');
 const { parseTrackListFilters } = require('../validators/track-list-query.validator');
 const trackWriteOptions = {
   readPreference: 'primary',
@@ -205,16 +206,22 @@ async function updateTrack(req, res, next) {
   }
 
   try {
-    const data = await mongoose.connection.transaction(async (session) => {
-      const track = await Track.findOneAndUpdate(
-        { _id: trackId, artistId: req.user._id },
-        { $set: req.body },
-        { session, returnDocument: 'after', runValidators: true, upsert: false }
-      ).exec();
-      if (!track) return null;
-      const [response] = await trackResponseService.enrichTracks([track], req.user._id, session);
-      return response;
-    }, trackWriteOptions);
+    const data = await trackEvents.coordinator.run(trackId, async () => {
+      const committed = await mongoose.connection.transaction(async (session) => {
+        const track = await Track.findOneAndUpdate(
+          { _id: trackId, artistId: req.user._id },
+          { $set: req.body },
+          { session, returnDocument: 'after', runValidators: true, upsert: false }
+        ).exec();
+        if (!track) return null;
+        const [response] = await trackResponseService.enrichTracks([track], req.user._id, session);
+        return response;
+      }, trackWriteOptions);
+      if (committed && req.body.isPublic === false) {
+        await trackEvents.afterCommit('visibility', trackId, committed);
+      }
+      return committed;
+    });
 
     if (!data) {
       return res.status(404).json({
@@ -253,33 +260,37 @@ async function deleteTrack(req, res, next) {
   }
 
   try {
-    const track = await mongoose.connection.transaction(
-      async (session) => {
-        const deletedTrack = await Track.findOneAndDelete({
-          _id: trackId,
-          artistId: req.user._id,
-        })
-          .session(session)
-          .exec();
+    const track = await trackEvents.coordinator.run(trackId, async () => {
+      const committed = await mongoose.connection.transaction(
+        async (session) => {
+          const deletedTrack = await Track.findOneAndDelete({
+            _id: trackId,
+            artistId: req.user._id,
+          })
+            .session(session)
+            .exec();
 
-        if (!deletedTrack) {
-          return null;
+          if (!deletedTrack) {
+            return null;
+          }
+
+          await TrackLike.deleteMany({
+            trackId: deletedTrack._id,
+          })
+            .session(session)
+            .exec();
+
+          return deletedTrack;
+        },
+        {
+          readPreference: 'primary',
+          readConcern: { level: 'snapshot' },
+          writeConcern: { w: 'majority' },
         }
-
-        await TrackLike.deleteMany({
-          trackId: deletedTrack._id,
-        })
-          .session(session)
-          .exec();
-
-        return deletedTrack;
-      },
-      {
-        readPreference: 'primary',
-        readConcern: { level: 'snapshot' },
-        writeConcern: { w: 'majority' },
-      }
-    );
+      );
+      if (committed) await trackEvents.afterCommit('deleted', trackId);
+      return committed;
+    });
 
     if (!track) {
       return res.status(404).json({

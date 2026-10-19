@@ -6,7 +6,7 @@ Last updated: October 19, 2026 (Asia/Saigon).
 
 Authentication (register/login/me, JWT, shared authentication rate limit), public
 Track metadata/tag filtering, newest/most-liked ordering and pagination,
-authenticated owned-Track listing (local feature), visibility-aware detail,
+authenticated owned-Track listing, visibility-aware detail,
 authenticated creation, owner-only
 metadata update/deletion, audio upload, and transactional Like/Unlike APIs.
 
@@ -20,15 +20,157 @@ The Track/Stem contract remains a draft awaiting Phuc's review. Audio/stem
 replacement and orphan Cloudinary asset cleanup remain pending. Cloudinary audio
 URLs use public delivery; Track visibility does not protect those URLs.
 
+## Track realtime MVP (October 19, 2026; local, unreleased)
+
+Branch: `feature/track-realtime`, based on synchronized dev/main **72424fa**.
+Commit **f3e54d0** separately records the four My Tracks Render documents with
+`docs: record My Tracks deployment verification`. Realtime feature changes remain
+uncommitted for review. No feature push, merge, deployment or Render realtime check
+has occurred. The earlier My Tracks Render results below remain valid.
+
+**Backend event proposal, Draft; not group-approved:**
+[REALTIME_EVENTS.md](REALTIME_EVENTS.md) defines events/ACKs, permissions,
+epoch/topic sequence rules, stale ACK handling and client reconnect/rejoin.
+The Track/Stem contract also remains Draft, awaiting Phuc. Socket.IO 4.8.4 shares
+the HTTP server; socket.io-client 4.8.4 is a development/test dependency.
+
+- Guests join public Tracks; owners also join private Tracks. Supplied invalid
+  tokens reject handshake. Token expiry removes membership/disconnects, with timer
+  cleanup. Join rechecks identity/access; no private User fields are broadcast.
+- One `track:{trackId}` room/socket, idempotent join/leave and connection counts
+  (multiple tabs count separately, not active audio playback). Reconnect requires
+  explicit rejoin and a snapshot. Epoch/seq are not durable delivery or DB versions.
+- Join and relevant mutations coordinate per Track, with socket-local request
+  ordering and no nested Track locks. Different Tracks proceed independently;
+  failed operations release queue entries. Disconnect/shutdown clean membership,
+  timers and pending lookups; no ghost room after a completed disconnect.
+- REST Like/Unlike and responses stay unchanged. Only actual committed membership
+  changes emit `like:updated`. PATCH-private and DELETE revoke room access after
+  commit. Existing transaction sessions, sequential queries and Like cascade remain.
+  No emit occurs inside a transaction callback. Retry/rollback cannot publish;
+  postcommit publish failure cannot fail/rerun a committed REST mutation.
+- Single process/instance only, default in-memory adapter. No Redis/outbox,
+  cross-instance coordination, replay or playback heartbeat. Thirty-second client
+  resync is only a proposal. Direct DB writes and overlapping deploy processes are
+  outside coherent realtime coverage. Shutdown handles SIGTERM/SIGINT with a
+  20-second deadline. No additional indexes or Atlas DDL were introduced.
+
+### Actual verification and cleanup
+
+Automated regression runs passed separately: **317 Track tests**, **51 Like
+tests**, **59 upload tests**, and **37 realtime tests**. Realtime loopback/mutation tests cover auth/access,
+expiry, tab counts, idempotency, reconnect, concurrent switching/join/revocation,
+rate/pending bounds, queue error recovery, retry/rollback, postcommit notification
+failure and shutdown, including shutdown during DB/index startup (no late listener).
+The first disconnect race test used a fixed delay and was corrected to wait for
+the server disconnect event; a concurrent ACK test was corrected to avoid assuming
+arrival order across separate sockets. These were test synchronization fixes.
+
+**Local HTTP + Socket.IO + real Atlas passed 8/8 groups**, **18 HTTP responses**,
+on October 19, **09:20:58-09:21:17 Asia/Saigon**
+(02:20:58-02:21:17 UTC), marker `sf-context-20261019022058-201ba2d3`:
+
+| Group | Actual result |
+| --- | --- |
+| Auth/access | Real JWT/User lookup; bad token rejected; guest/foreign private denied, owner allowed; HTTP identity matched Atlas. |
+| Presence | Three connections, duplicate joins and shared HTTP/Socket listener passed. |
+| Like idempotency | PUT/DELETE changed events/count exactly once; repeated requests emitted nothing; exact shared-state payload allowlist passed. |
+| Concurrent Likes/context | Two-account concurrent Likes yielded count=2, two memberships and monotonic event seq; guest/owner likedByMe stayed correct. |
+| Real rollback | Harness-local transaction wrapper aborted AFTER real Unlike/PATCH/DELETE operations; DB Track/two Likes and room count remained unchanged, with no Like event or revocation. No fault injection was added to application/production code. |
+| Reconnect | Removed connection reduced count; reconnect restored no room automatically; explicit join returned current count/likes snapshot. |
+| Privacy/concurrent join | Committed PATCH-private evicted guest/foreign connections; concurrent join could not retain foreign membership; owner stayed, HTTP private scope and artist/likedByMe were preserved. |
+| DELETE/cascade | Committed deletion removed owner membership and both Likes; further join returned NOT_FOUND; public list and another public room remained usable. |
+
+Cleanup used exact fixture IDs, marker/title/description, owners and account
+identities. Foreign Likes would block cleanup; missing Track fixtures still allow
+bounded orphan-Like removal. **Zero fixture Users/Tracks/Likes remain.**
+Before/after fingerprints matched every preexisting User/Track/Like, protected
+main account and index catalog. Runtime ended with zero rooms, clients, timers
+and members; DB disconnected in finally. DNS_SERVERS was honored, automatic
+index/collection creation disabled, and no Cloudinary assets were created.
+The initial sandbox connection attempt failed before setup (zero fixture IDs);
+the authorized network retry produced the successful results above.
+
+Nonsecret JSON reports remain ignored/local; this GitHub-readable summary is
+independent of them. Temporary harness/logs were removed. Existing handoff files
+were preserved. **Render realtime is NOT verified.** Remaining integration work:
+Phuc's Draft event review, frontend reconnect/stale ACK behavior and real deployment
+checks. No collection, multi-instance or unrelated feature was implemented.
+
+## Released My Tracks feature (October 19, 2026)
+
+**Actual Render verification passed 10/10 groups**, followed by verified fixture
+cleanup and fast-forward-only branch synchronization. Feature commit **cbbdb17**
+was merged through **PR #40** (feature -> dev, 5bd54e4) and **PR #41** (dev -> main).
+Release/Live commit: **72424fa2efb7aebbb265c3f952ad1e7fa30576a1**. Nguyen confirmed
+Live 72424fa in Render Dashboard. Health/Swagger do not expose a build SHA, so this
+attribution is based on that confirmation rather than inferred from API health
+or Git state. The Track/Stem contract remains **Draft**, pending Phuc's review.
+
+### Actual Render My Tracks verification and cleanup
+
+Target: https://stemforge-server.onrender.com. Fixture lifecycle:
+**October 19, 02:32:28-02:32:56 Asia/Saigon**
+(October 18, 19:32:28-19:32:56 UTC), marker
+`sf-context-20261018193228-8729321f`. The run recorded **95 HTTPS responses**,
+including three preflight responses before fixture setup. A separate read-only
+preflight invocation made three additional requests. These are separate from the
+earlier automated tests and local HTTP/Atlas verification totals below.
+
+All application requests used the real Render API. Two disposable accounts
+registered/logged in through Render and passed /auth/me; their exact identities
+matched the privately configured Atlas before Track creation. Tokens/passwords
+stayed in memory. No local app listener, locally signed token, production query
+instrumentation, fault injection or Cloudinary assets were used. DNS_SERVERS was
+honored and automatic index/collection creation was disabled for direct DB access.
+
+Created **15 marked Tracks: 13 for A and two for B**, initially seven public and
+eight private. Placeholder HTTPS audio URLs required no uploads. Exact fixture
+selectors bounded timestamp updates for ordering ties and a marked account avatar
+update for null/HTTPS author output. Four initial Like memberships came through
+Render; a subsequent Like/Unlike cycle preserved the other account's membership.
+
+| Group | Actual Render result |
+| --- | --- |
+| Authentication/setup | Missing token, invalid Bearer and malformed Basic returned 401/no-store. Both accounts registered/logged in and passed /auth/me with exact Atlas identity checks. Expired/missing-account token cases remain covered by earlier local tests; they were not claimed as new Render checks. |
+| Empty account | Both initially empty accounts returned zero data/total/totalPages. B still returned zero after A owned 13 Tracks. |
+| Owner scope | A returned exactly its 13 public/private Tracks; B returned only its two. Defaults were page=1/limit=12/total=13/totalPages=2 for A. limit=100 returned all owned Tracks. |
+| Ordering/pagination | createdAt DESC and tied _id DESC matched. Seven pages at limit=2 returned 13 nonoverlapping IDs. Default page 2 and beyond-last page retained the owner total. |
+| Viewer context | Exact artist allowlist and null/HTTPS avatars passed. Own-private Like state was true; another account's Like did not set A's likedByMe. Liking B's public Track did not add it to A's owned list. Like/Unlike changed A's state while B's membership and final count=1 remained. |
+| Public regression | Guest/A/B public lists in newest/mostLiked modes excluded all private Tracks and returned the seven expected public fixtures, with correct viewer context. Combined title/tag/genre/key/equal-BPM filtering also returned seven. |
+| Invalid queries | All 24 scope/filter/operator/unsupported/repeated/empty/bad-pagination cases returned 400/no-store, including artistId values for self/other and nested forms. No production query instrumentation was added; the earlier local command observations establish the pre-query validation boundary. |
+| Private access | Own-private detail stayed 200; foreign/guest private detail stayed 404. B changed its only public Track to private: mine still returned two Tracks/total=2, and the public fixture total fell from seven to six. |
+| Swagger | Required Bearer, only page/limit, defaults/limits, TrackListResponse and 400/401 handling matched. Shared total/totalPages descriptions use endpoint access scope and filters, covering the pre-commit P3 documentation fix. |
+| Storage | Stored counters matched actual memberships; artist/likedByMe were absent from all 15 stored Track fixtures. No DDL was performed. |
+
+**All ten groups passed; none failed or remained blocked.** Cleanup was restricted
+to manifest IDs, marker/title/description, owners and exact account identities.
+Track/Like deletion shared one session sequentially per transaction, including
+bounded orphan-Like handling; foreign Likes would block deletion. Account cleanup
+required zero remaining owned Tracks/Likes. **Zero fixture Users, Tracks or Likes
+remain.** All preexisting User/Track/Like data, the protected main account and
+index catalogs matched before/after fingerprints. The database returned to
+1 User, 0 Tracks and 0 Likes. DB disconnected in finally (dbDisconnected=true).
+The temporary harness was removed; its nonsecret report remains ignored/local.
+This summary is independent of that file on GitHub. No application code changed.
+
+After verified cleanup, tracked working tree/staging were clean. Synchronization
+used fetch, main ff-only origin/main, dev ff-only origin/dev, dev ff-only main,
+then a normal non-force push of dev. **main/dev/origin/main/origin/dev now all
+equal 72424fa**; current branch is **dev**. All 20 previously fingerprinted
+handoff/local-report files retained their hashes. No PR merge or deployment was
+performed by this check. At that checkpoint four documentation updates were
+pending; they are now preserved in **f3e54d0** (see realtime preparation above).
+
 ## Local My Tracks feature (October 19, 2026)
 
-Current branch: **feature/my-tracks**, created from synchronized dev/main/origin
+At the local checkpoint, **feature/my-tracks** was created from synchronized dev/main/origin
 559222a. The four Render tag/sort verification documents were preserved and
 committed separately as **76ebe96**, `docs: record tag filtering and sorting
 deployment verification`, before feature edits. Handoff files and local reports
-are preserved. The reviewed feature is prepared for feature -> dev -> main PRs;
-**/mine has not been deployed or tested on Render.** Contract remains **Draft**,
-awaiting Phuc's final review.
+were preserved. That checkpoint preceded deployment/Render testing; the released
+verification above now supersedes its deployment state. Contract remains
+**Draft**, awaiting Phuc's final review.
 
 ### Design and implemented behavior
 
