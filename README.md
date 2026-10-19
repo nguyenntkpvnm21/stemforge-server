@@ -17,7 +17,7 @@ Express, Mongoose, and MongoDB Atlas.
 
 Public Track title search and genre/key/BPM filtering are implemented and verified on Render.
 Tag filtering, most-liked ordering and NUL query validation are verified on Render.
-Authenticated owned-Track listing is implemented locally and awaits deployment.
+Authenticated owned-Track listing is verified on Render.
 Realtime features and audio/stem replacement remain pending.
 
 ## Requirements
@@ -373,8 +373,27 @@ Like state, public-list regression, invalid queries, batched DB commands and
 Swagger. Cleanup left zero fixtures, preserved all preexisting data/main account
 and indexes, closed the HTTP listener and disconnected DB in finally. Placeholder
 audio URLs created no Cloudinary assets. The spent harness was removed; generated
-reports remain local/ignored. **/mine has not been deployed or tested on Render.**
-See [current status](docs/PROJECT_STATUS.md#local-my-tracks-feature-october-19-2026).
+reports remain local/ignored. Those local results predate the actual Render check
+below and are not combined into a new test total.
+
+On October 19, **10/10 actual Render groups passed** on release
+**72424fa2efb7aebbb265c3f952ad1e7fa30576a1** (PR #40/#41; Live SHA confirmed by Nguyen
+in Render Dashboard), with 95 HTTPS responses including three preflight requests.
+A separate read-only preflight invocation made three more. Two marked accounts
+and 15 Tracks verified authentication, empty-account/owner isolation, own
+public/private Tracks, page/limit defaults and boundaries, tied ordering,
+artist/likedByMe, Like/Unlike and public-only regression. All 24 invalid queries
+returned 400/no-store. An account changed to private-only still received its two
+owned Tracks and total=2. Deployed Swagger included the corrected shared
+pagination descriptions. Production DB query instrumentation was not added;
+batch-query behavior remains established by the earlier local verification.
+
+Cleanup left zero fixture Users/Tracks/Likes and preserved all existing data,
+protected main account and index catalogs. DB disconnected in finally. No assets,
+local JWT signing or production fault injection were used. The spent harness was
+removed and raw reports remain ignored/local. main/dev and their origin refs were
+fast-forward synchronized to 72424fa, finishing on dev. Contract remains Draft.
+See [released results](docs/PROJECT_STATUS.md#released-my-tracks-feature-october-19-2026).
 
 ### Discovery indexes
 
