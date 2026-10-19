@@ -98,6 +98,34 @@ Health endpoint: https://stemforge-server.onrender.com/api/health
 Create pull requests into `dev`. Promote verified versions from
 `dev` to `main`.
 
+## Backend CI
+
+[Backend CI](.github/workflows/backend-ci.yml) runs on pull requests targeting
+`dev` or `main`, using Node.js 24 on Ubuntu 24.04 and `npm ci` with the committed
+lockfile. It is independent of the frontend and does not deploy the application.
+
+Run the same automated suites locally with Node.js 24:
+
+```sh
+npm ci
+npm test
+```
+
+`npm test` delegates to `npm run test:ci`: Tracks, uploads, Likes, realtime,
+recovery-logic and index-logic unit tests. Suites list their test files explicitly;
+they do not discover `*.local.js` or invoke seed/cleanup/Render checks or the index
+provisioning CLI. Recovery/index tests use mocks, not actual database operations.
+
+No `.env`, Atlas, Cloudinary credentials or production data are required. Tests
+provide dummy configuration where needed, mock external services, and use local
+HTTP/Socket.IO listeners; allow loopback networking. No custom secrets are used
+in the workflow. Add new automated suites to `test:ci` explicitly.
+
+Node 24 is an [LTS release](https://nodejs.org/en/about/previous-releases).
+Actions are pinned to verified commit SHAs for official
+[checkout v7.0.1](https://github.com/actions/checkout/releases/tag/v7.0.1) and
+[setup-node v7.1.0](https://github.com/actions/setup-node/releases/tag/v7.1.0).
+
 ## Cloudinary configuration and upload check
 
 Set these variables in your local `.env`:
