@@ -22,10 +22,15 @@ are not added into a new total. Subsequently, tag/sort/NUL validation passed
 from Nguyen). Cleanup, data/main-account/index preservation and DB disconnect
 passed; main/dev and origin refs were synchronized by fast-forward to that release.
 See PROJECT_STATUS.md for actual results and index deployment limits.
-Current local follow-up: Nguyen authorized GET /api/tracks/mine, an authenticated
+Subsequent follow-up: Nguyen authorized GET /api/tracks/mine, an authenticated
 owner-only public/private list with page/limit and the existing response context.
 It passed 317 Track, 51 Like and 59 upload tests plus ten real local HTTP/Atlas
-groups, with cleanup and preservation verified. It has not been checked on Render.
+groups, with cleanup and preservation verified. It then passed ten actual Render
+groups on Live 72424fa (PR #40/#41; Nguyen's Dashboard confirmation), including
+owner/private-only totals, pagination, viewer context and 24 invalid queries.
+Cleanup and data/main-account/index preservation passed; DB disconnected and
+main/dev/origin refs were fast-forward synchronized to that release. Frontend
+dashboard integration remains unverified; the contract remains Draft.
 This review changes documentation only; it does not authorize implementation,
 change assignments, certify frontend completion, or create production data.
 
@@ -136,7 +141,7 @@ implementation in this tree, not proof that another repository has no work.
 | Upload metadata including title/Genre/BPM/Key/cover - section 3 Module 3 | Partial | Track creation accepts metadata and cover URL. No cover-image upload route; actual frontend form is outside this repository. The document does not specify who must implement a separate cover-upload endpoint. |
 | Upload multiple stems simultaneously - section 3 Module 3; section 6 Nguyen and week 4 | Partial; multi-stem client flow unverified, request design undecided | `src/middlewares/audio-upload.middleware.js:31` sets files=1 and `.single('audio')` at line 50. Existing POST `/api/uploads/audio` accepts one MP3/WAV/FLAC, max 20 MiB. The document requires simultaneous multi-file capability but does not explicitly require one HTTP request. Whether several single-file uploads satisfy the requirement needs group agreement and integration verification. |
 | Track/Stem CRUD - section 6 week 4 | Partial | `src/controllers/track.controller.js` supports Track create/detail/metadata update/delete. `src/validators/track.validator.js:21` excludes stems from updates. No stem-specific change/replace/delete API. Exact independent Stem CRUD semantics require agreement. |
-| Owner's personal library/dashboard - section 3 Module 3; section 6 Phuc UI and week 5 | Backend owner listing locally verified; frontend integration unverified | Nguyen separately authorized GET /api/tracks/mine: mandatory auth, req.user._id scope, own public/private Tracks, page/limit, shared owner data/total, newest/_id DESC and artist/likedByMe. Client scope changes are rejected. 317 Track tests and ten local HTTP/Atlas groups passed with cleanup/preservation. Public list stays public-only; Render and Phuc's dashboard integration remain unverified. |
+| Owner's personal library/dashboard - section 3 Module 3; section 6 Phuc UI and week 5 | Backend Render verified; frontend integration unverified | Nguyen authorized GET /api/tracks/mine: mandatory auth, req.user._id scope, own public/private Tracks, page/limit, consistent owner data/total, newest/_id DESC and artist/likedByMe. Ten actual Render groups passed on 72424fa, including a private-only owner and rejected client scope changes; cleanup/data/main-account/index preservation passed. Public list stays public-only. Earlier local tests are recorded separately in PROJECT_STATUS.md; Phuc's dashboard integration remains unverified. |
 | Search Genre/BPM range/Key/tags/title keyword - section 3 Module 4; section 6 Nguyen explicitly Genre/BPM/Key | Implemented; Render verified October 18/19 | q/genre/key/BPM have October 18 Render evidence. Tag follow-up passed 12/12 actual Render groups on 559222a, including literal/full-element/case/trim tag matching, all-filter AND, data/total consistency and NUL validation. Cleanup/main-account/index preservation verified; see PROJECT_STATUS.md for separate historical automated/local results. |
 | Pagination and newest/most-liked ordering - section 3 Module 4; section 6 Nguyen | Implemented; Render verified October 19 | newest keeps createdAt/_id DESC; mostLiked uses likesCount/createdAt/_id DESC. Actual Render checks passed real Like counts, time/ID ties, pages and invariant totals. Existing compound index was verified without DDL; unhinted public ranking used IXSCAN without SORT. Cleanup, existing data/indexes and main account preservation passed. Not a load benchmark; see PROJECT_STATUS.md. |
 | Like/Unlike and count - section 3 Module 4; section 6 Nguyen | Present for REST | `src/services/track-like.service.js`, `src/models/TrackLike.js`, Like controller/routes. Earlier Render evidence covers permissions, idempotency, counters, concurrency, cascade, and cleanup. Socket broadcast is separate and missing. |
@@ -205,8 +210,8 @@ implementation in this tree, not proof that another repository has no work.
    necessary Stem CRUD together before changing the established contract; keep
    standalone asset-maintenance work subordinate to the required product flow.
 3. **Integrate the creator-dashboard API.** The authorized /api/tracks/mine owner
-   listing is locally verified, including private Tracks; release/Render and
-   frontend integration are next verification steps. Remaining Stem-management
+   listing is Render verified, including private-only accounts; frontend
+   integration remains to be verified. Remaining Stem-management
    choices still require agreement. The named dashboard UI assignment is Phuc's.
 4. **Verify discovery integration.** Genre, BPM range, Key, tags, title search and
    newest/most-liked order have actual Render evidence. Frontend integration

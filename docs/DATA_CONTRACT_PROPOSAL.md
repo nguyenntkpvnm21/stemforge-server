@@ -1,9 +1,10 @@
 # Data contract proposal for discussion with Phuc
 
 **Status: Draft - not approved.** Updated October 19, 2026. Released backend:
-`559222a`; artist/likedByMe previously passed real Render HTTP verification
+`72424fa`; artist/likedByMe previously passed real Render HTTP verification
 (12/12 groups), search/filtering subsequently passed 10/10 Render groups, and
 tag/sort/NUL validation passed 12/12 actual Render groups on October 19.
+Authenticated owned-Track listing subsequently passed 10/10 Render groups.
 Fixture cleanup and main-account preservation were verified. Deployment/testing
 does not constitute Phuc's approval of the updated contract.
 Read `docs/data-contract.md` and `.json` from branch `docs/data-contract` at
@@ -266,7 +267,7 @@ SORT. This is not a load benchmark. See
 This feature and its query documentation do not approve the overall Draft
 contract or resolve the open collection/stem/download decisions.
 
-## Local owned-Track listing (October 19)
+## Owned-Track listing (October 19)
 
 Nguyen authorized GET /api/tracks/mine for the authenticated account's own Tracks.
 It includes public/private Tracks and accepts only page/limit, with defaults 1/12,
@@ -278,7 +279,11 @@ The public list remains public-only and uses its existing discovery filters.
 
 317 Track tests, 51 Like tests and 59 upload tests passed. Ten real local
 HTTP/Atlas groups passed, with safe cleanup, preexisting-data/main-account/index
-preservation and DB disconnect verified. This endpoint is not deployed/tested on
-Render yet. It supplies owned-Track dashboard data; it does not implement or decide
+preservation and DB disconnect verified. Subsequently, ten actual Render groups
+passed on Live 72424fa (95 HTTPS responses), including empty/private-only owners,
+Like/Unlike, pagination/context, 24 invalid queries and public-list regression.
+Cleanup, preexisting-data/main-account/index preservation and DB disconnect
+passed; main/dev and their origin refs were fast-forward synchronized. These are
+separate verification runs. It supplies owned-Track dashboard data; it does not implement or decide
 My Collection, stem editing, download delivery or Socket.IO. The contract remains
-Draft. See [current status](PROJECT_STATUS.md#local-my-tracks-feature-october-19-2026).
+Draft. See [released status](PROJECT_STATUS.md#released-my-tracks-feature-october-19-2026).

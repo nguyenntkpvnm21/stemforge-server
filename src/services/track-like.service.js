@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Track = require('../models/Track');
 const TrackLike = require('../models/TrackLike');
+const trackEvents = require('./track-events.service');
 
 const MAX_TRANSACTION_ATTEMPTS = 3;
 
@@ -112,71 +113,75 @@ async function setTrackLikeState(trackId, userId, shouldLike) {
     throw new TypeError('The requested like state must be a boolean.');
   }
 
-  return runLikeTransaction(async (session) => {
-    const { track, like } = await readSnapshot(
-      trackId,
-      userId,
-      session
-    );
-
-    if (Boolean(like) === shouldLike) {
-      return toState(track, shouldLike);
-    }
-
-    const delta = shouldLike ? 1 : -1;
-    const nextCount = track.likesCount + delta;
-
-    if (!Number.isSafeInteger(nextCount) || nextCount < 0) {
-      throw new Error('Track likes count would become invalid.');
-    }
-
-    if (shouldLike) {
-      await TrackLike.create(
-        [{
-          trackId: track._id,
-          userId,
-        }],
-        { session }
+  return trackEvents.coordinator.run(trackId, async () => {
+    const outcome = await runLikeTransaction(async (session) => {
+      const { track, like } = await readSnapshot(
+        trackId,
+        userId,
+        session
       );
-    } else {
-      const deletion = await TrackLike.deleteOne(
+
+      if (Boolean(like) === shouldLike) {
+        return { state: toState(track, shouldLike), changed: false };
+      }
+
+      const delta = shouldLike ? 1 : -1;
+      const nextCount = track.likesCount + delta;
+
+      if (!Number.isSafeInteger(nextCount) || nextCount < 0) {
+        throw new Error('Track likes count would become invalid.');
+      }
+
+      if (shouldLike) {
+        await TrackLike.create(
+          [{
+            trackId: track._id,
+            userId,
+          }],
+          { session }
+        );
+      } else {
+        const deletion = await TrackLike.deleteOne(
+          {
+            _id: like._id,
+            trackId: track._id,
+            userId,
+          },
+          { session }
+        ).exec();
+
+        if (deletion.deletedCount !== 1) {
+          throw new Error('Unable to remove the Track like.');
+        }
+      }
+
+      const updatedTrack = await Track.findOneAndUpdate(
+        accessFilter(track._id, userId),
         {
-          _id: like._id,
-          trackId: track._id,
-          userId,
+          $inc: { likesCount: delta },
         },
-        { session }
-      ).exec();
+        {
+          session,
+          returnDocument: 'after',
+          runValidators: true,
+          upsert: false,
+        }
+      )
+        .select('_id likesCount')
+        .exec();
 
-      if (deletion.deletedCount !== 1) {
-        throw new Error('Unable to remove the Track like.');
+      if (!updatedTrack) {
+        throw new TrackLikeError(404, 'Track not found');
       }
-    }
 
-    const updatedTrack = await Track.findOneAndUpdate(
-      accessFilter(track._id, userId),
-      {
-        $inc: { likesCount: delta },
-      },
-      {
-        session,
-        returnDocument: 'after',
-        runValidators: true,
-        upsert: false,
+      if (updatedTrack.likesCount !== nextCount) {
+        throw new Error('Track likes count update is inconsistent.');
       }
-    )
-      .select('_id likesCount')
-      .exec();
 
-    if (!updatedTrack) {
-      throw new TrackLikeError(404, 'Track not found');
-    }
-
-    if (updatedTrack.likesCount !== nextCount) {
-      throw new Error('Track likes count update is inconsistent.');
-    }
-
-    return toState(updatedTrack, shouldLike);
+      return { state: toState(updatedTrack, shouldLike), changed: true };
+    });
+    if (outcome.changed) await trackEvents.afterCommit('like', trackId, outcome.state);
+    return outcome.state;
   });
 }
 
