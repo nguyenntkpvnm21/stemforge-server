@@ -18,7 +18,8 @@ Express, Mongoose, and MongoDB Atlas.
 Public Track title search and genre/key/BPM filtering are implemented and verified on Render.
 Tag filtering, most-liked ordering and NUL query validation are verified on Render.
 Authenticated owned-Track listing is verified on Render.
-Realtime features and audio/stem replacement remain pending.
+Realtime MVP is implemented locally with automated and HTTP/Socket/Atlas checks;
+Render realtime remains unverified. Audio/stem replacement remains pending.
 
 ## Requirements
 
@@ -934,3 +935,26 @@ in one transaction. Successful Track deletion returns HTTP 204 with no body.
 
 Track deletion does not remove Cloudinary audio assets. Automatic cleanup
 of uploaded audio assets is pending.
+
+## Track realtime MVP (backend proposal, Draft)
+
+Socket.IO shares the HTTP server/port; deploy one Node process/Render instance.
+Guests can join public Tracks; owners can also join their private Tracks. Invalid
+tokens reject the handshake. Token expiry removes membership and disconnects.
+Counts measure room connections, including separate tabs, not audio playback.
+
+Client events `track:join`/`track:leave` accept `{ trackId }` with ACK. Join/rejoin
+returns a snapshot. Server events: `listeners:count`, `like:updated`,
+`track:unavailable`, `auth:expired`. Like/Unlike remain REST. Notifications and
+privacy/deletion revocation run after commit, never during retry/rollback.
+Existing REST responses and access rules remain unchanged.
+
+Read [the Draft event proposal](docs/REALTIME_EVENTS.md) for payloads, epoch/seq,
+stale ACK handling and reconnect/rejoin. Phuc has not approved it. Epoch/seq do not
+provide durable delivery. Redis/outbox, multiple instances and playback heartbeat
+are outside MVP. Optional 30-second client resync remains a proposal.
+Render realtime is unverified.
+
+`npm run test:realtime` tests real loopback connections, auth/presence/lifecycle and
+transaction retry/rollback/publish failure. Existing regression commands remain
+`npm run test:tracks`, `npm run test:likes`, and `npm run test:uploads`.
