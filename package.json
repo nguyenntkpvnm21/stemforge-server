@@ -6,7 +6,8 @@
   "scripts": {
     "test:realtime": "node --test --test-reporter=spec tests/track-realtime.test.js tests/track-realtime-mutations.test.js tests/track-realtime-bootstrap.test.js",
     "test": "npm run test:ci",
-    "test:ci": "npm run test:tracks && npm run test:uploads && npm run test:likes && npm run test:realtime && npm run test:local-recovery && npm run test:index",
+    "test:ci": "npm run test:auth && npm run test:tracks && npm run test:uploads && npm run test:likes && npm run test:realtime && npm run test:local-recovery && npm run test:index",
+    "test:auth": "node --test --test-reporter=spec tests/auth-api.test.js tests/auth-jwt.test.js",
     "test:index": "node --test --test-reporter=spec tests/track-most-liked-index.test.js",
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",

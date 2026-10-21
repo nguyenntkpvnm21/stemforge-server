@@ -131,7 +131,7 @@ npm ci
 npm test
 ```
 
-`npm test` delegates to `npm run test:ci`: Tracks, uploads, Likes, realtime,
+`npm test` delegates to `npm run test:ci`: Auth, Tracks, uploads, Likes, realtime,
 recovery-logic and index-logic unit tests. Suites list their test files explicitly;
 they do not discover `*.local.js` or invoke seed/cleanup/Render checks or the index
 provisioning CLI. Recovery/index tests use mocks, not actual database operations.
@@ -140,6 +140,15 @@ No `.env`, Atlas, Cloudinary credentials or production data are required. Tests
 provide dummy configuration where needed, mock external services, and use local
 HTTP/Socket.IO listeners; allow loopback networking. No custom secrets are used
 in the workflow. Add new automated suites to `test:ci` explicitly.
+
+Run `npm run test:auth` for REST Auth/JWT tests. They use HTTP loopback with the
+real Auth router, authentication, JSON error middleware and rate limiter;
+database operations are mocked, while bcrypt/JWT and User serialization are real.
+The suite covers registration/login, validation and safe errors, `/me`, JWT
+claims/expiry/configuration and the shared Auth quota. Limiter keys are reset
+between tests. Existing Track/Socket.IO authentication tests remain in their
+respective suites. This does not verify Atlas unique indexes, proxy deployment
+configuration, the real 15-minute window rollover or production behavior.
 
 Node 24 is an [LTS release](https://nodejs.org/en/about/previous-releases).
 Actions are pinned to verified commit SHAs for official
