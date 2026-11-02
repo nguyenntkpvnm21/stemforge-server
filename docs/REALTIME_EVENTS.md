@@ -7,9 +7,15 @@ reconciliation rules below. The Track/Stem contract also remains Draft.
 ## Connection and authorization
 
 Socket.IO 4.x uses the REST HTTP server/port, default `/socket.io` path and default
-polling/WebSocket transports. Browser Origin must equal `FRONTEND_URL` (default
-`http://localhost:5173`); non-browser clients without Origin are allowed. Origin
-checking is not authentication. No token belongs in a URL or log.
+polling/WebSocket transports. REST and Socket.IO share an exact-origin allowlist:
+`http://localhost:5173`, the existing single `FRONTEND_URL` when configured, and
+comma-separated entries in `ADDITIONAL_FRONTEND_ORIGINS`. Keep existing valid
+origins; add the currently authorized preview explicitly as
+`https://stemforge-client-54d9dz4cg-ngoc-phuc.vercel.app`. No Vercel wildcard is
+allowed. The list controls polling CORS and WebSocket/polling `allowRequest`;
+unlisted handshakes receive 403. Non-browser clients without Origin remain
+allowed. See README for environment setup and local/deployed verification limits.
+Origin checking is not authentication. No token belongs in a URL or log.
 
 Connect with `auth: { token: accessToken }`, or omit token for a guest. An explicitly
 supplied empty/invalid/expired token rejects the connection, never falls back to

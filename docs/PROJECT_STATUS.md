@@ -1,6 +1,49 @@
 # StemForge project status
 
-Last updated: October 19, 2026 (Asia/Saigon).
+Last updated: November 2, 2026 (Asia/Saigon).
+
+## Frontend CORS allowlist follow-up (November 2, 2026; local only)
+
+Branch: `feature/cors-frontend-origins`, based on `origin/dev` **1e25c0d** after fetch.
+Prepared for a feature -> dev pull request. No PR merge, Render environment
+update, deployment or production request is part of this follow-up. The dated
+release summary/checkpoints below retain their original scope; their old Git
+and Live statements are not a current deployment claim for this change.
+
+REST previously set Access-Control-Allow-Origin to the single FRONTEND_URL value,
+while Socket.IO accepted only that same single origin. A Vercel request therefore
+could not use a localhost-only response. Both now use a shared exact allowlist:
+localhost:5173 is retained, the existing single FRONTEND_URL is preserved, and
+ADDITIONAL_FRONTEND_ORIGINS adds explicit comma-separated origins. The only new
+preview authorized for deployment is:
+`https://stemforge-client-54d9dz4cg-ngoc-phuc.vercel.app`.
+No Vercel wildcard is introduced. Invalid configured origins fail startup without
+printing their values; FRONTEND_URL remains a single origin.
+
+Actual local `npm.cmd run test` (delegating to `test:ci`) passed **604/604 tests**,
+zero failures or skips:
+CORS **28**, Auth **77**, Tracks **317**, uploads **59**, Likes **51**, realtime
+**37**, recovery **26**, index **9**. The separate initial 28-test CORS run also
+passed; it is not added again to that CI total. Tests use dummy configuration,
+mocked DB/storage operations and real loopback HTTP/Socket.IO connections; they
+never load .env or connect to Atlas/Cloudinary.
+
+The CORS suite exercises the actual Express app and both socket transports.
+Localhost, the exact Vercel preview and a test-only preexisting FRONTEND_URL pass
+GET/preflight checks with exact origin reflection and Vary: Origin, including
+REST GET/POST/PUT/PATCH/DELETE and Engine.IO GET/POST preflights with
+Authorization/Content-Type, 400/401 REST responses and public-room ACKs.
+Unlisted, lookalike and opaque/null
+origins receive no REST CORS permission and Socket.IO rejects both transports;
+raw polling denial is 403. A denied REST public GET still returns 200 without
+Allow-Origin, so browser JavaScript cannot read it. Clients without Origin remain
+supported. Every test listener/socket closes during teardown.
+
+README and .env.example document the additive Render setting and post-deployment
+checks; REALTIME_EVENTS.md describes the shared policy and remains Draft.
+Render verification of this new allowlist is **pending**. The permanent technical
+demo Track and all Cloudinary assets were untouched; no production data cleanup
+was needed. Existing local handoff files and .env are preserved.
 
 ## Current summary and backlog (release 86aa3cb)
 

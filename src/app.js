@@ -6,8 +6,10 @@ const authRoutes = require('./routes/auth.routes');
 const errorHandler = require('./middlewares/error.middleware');
 const trackRoutes = require('./routes/track.routes');
 const uploadRoutes = require('./routes/upload.routes');
+const { createFrontendOriginPolicy } = require('./config/frontend-origins');
 
 const app = express();
+const frontendOrigins = createFrontendOriginPolicy();
 
 const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS || 0);
 
@@ -19,7 +21,7 @@ app.set('trust proxy', trustProxyHops);
 
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: frontendOrigins.origins,
   })
 );
 

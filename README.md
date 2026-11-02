@@ -8,7 +8,7 @@ Express, Mongoose, and MongoDB Atlas.
 - Health endpoint: `GET /api/health`
 - MongoDB Atlas connection before API startup
 - Environment configuration validation
-- Configurable frontend origin for CORS
+- Shared frontend origin allowlist for REST CORS and Socket.IO
 - Optional DNS resolver configuration
 
 - JWT authentication, ownership-aware Track CRUD, and public pagination
@@ -42,7 +42,8 @@ Fill in `.env` before starting the server:
 | Variable | Purpose |
 |---|---|
 | `PORT` | Local API port, normally `5000` |
-| `FRONTEND_URL` | Allowed frontend origin |
+| `FRONTEND_URL` | Existing single frontend origin; retained in the shared REST/Socket.IO allowlist |
+| `ADDITIONAL_FRONTEND_ORIGINS` | Optional comma-separated additional origins; localhost:5173 remains allowed |
 | `MONGO_URI` | MongoDB URI with database name and no embedded credentials |
 | `MONGO_USERNAME` | Database username |
 | `MONGO_PASSWORD` | Database password |
@@ -98,13 +99,70 @@ See the [Node.js watch-mode documentation](https://nodejs.org/docs/latest-v24.x/
 | Node version | `NODE_VERSION=24` |
 | Runtime mode | `NODE_ENV=production` |
 
-Set the MongoDB credentials and `FRONTEND_URL` in Render's environment
+Set the MongoDB credentials and frontend-origin settings in Render's environment
 settings. Render provides `PORT` automatically.
 
 Allow the service's outbound IP ranges in MongoDB Atlas.
 Leave `DNS_SERVERS` unset unless the deployment environment needs it.
 
 API URL: https://stemforge-server.onrender.com
+
+### Frontend origins for REST and Socket.IO
+
+Both REST CORS and Socket.IO use the same exact-origin allowlist:
+
+- `http://localhost:5173` is always included for local development.
+- `FRONTEND_URL` retains its existing single-origin meaning. Keep its current
+  valid value to preserve an already configured frontend.
+- `ADDITIONAL_FRONTEND_ORIGINS` adds comma-separated HTTP(S) origins. For the
+  currently authorized Vercel preview, add this Render environment variable:
+
+```text
+ADDITIONAL_FRONTEND_ORIGINS=https://stemforge-client-54d9dz4cg-ngoc-phuc.vercel.app
+```
+
+Do not put a comma-separated list in `FRONTEND_URL`. If additional origins have
+already been configured in the new variable, retain those entries and append the
+preview once. No wildcard Vercel hostname is allowed; a different preview URL
+requires another explicit entry. Configuration entries are trimmed, optional
+trailing slashes are normalized, and duplicate origins are removed. Invalid
+schemes, paths, query strings, fragments, credentials, wildcards or empty list
+entries stop startup with an error naming the variable without printing its value.
+
+Allowed REST requests and preflights reflect the request's one origin in
+`Access-Control-Allow-Origin` and include `Vary: Origin`. A disallowed REST origin
+gets no CORS permission header; the underlying public GET may still return 200,
+and the browser prevents JavaScript from reading it. Socket.IO applies the same
+list to polling CORS and `allowRequest`, rejecting a disallowed polling/WebSocket
+handshake with 403. Requests without Origin remain supported; authentication and
+Track public/private access still apply separately. Cookie credentials are not enabled.
+
+Deploy the code through the normal feature -> dev -> main PR flow before treating
+the new environment variable as effective. Then save the origin configuration and
+deploy/restart Render. Verify GET and OPTIONS from localhost and the exact preview,
+confirm an unrelated origin receives no CORS permission, and check the preview's
+Network panel against the Render API. This configuration change has local test
+evidence only until those deployed checks are actually completed.
+
+After deployment, these read-only PowerShell requests check the response headers
+without any token or database mutation:
+
+```powershell
+$origins = @(
+  'http://localhost:5173',
+  'https://stemforge-client-54d9dz4cg-ngoc-phuc.vercel.app',
+  'https://untrusted.example.invalid'
+)
+foreach ($origin in $origins) {
+  curl.exe -i --max-time 60 'https://stemforge-server.onrender.com/api/health' -H "Origin: $origin"
+  curl.exe -i --max-time 60 -X OPTIONS 'https://stemforge-server.onrender.com/api/tracks' -H "Origin: $origin" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: authorization,content-type'
+}
+```
+
+The first two origins must each receive their own exact Allow-Origin header;
+the third must not receive that header. Allowed preflights return 204 and permit
+Authorization/Content-Type. Also check Socket.IO polling and WebSocket handshakes
+with the same three origins, then open the preview and localhost list/detail UI.
 
 Health endpoint: https://stemforge-server.onrender.com/api/health
 
@@ -131,7 +189,7 @@ npm ci
 npm test
 ```
 
-`npm test` delegates to `npm run test:ci`: Auth, Tracks, uploads, Likes, realtime,
+`npm test` delegates to `npm run test:ci`: CORS/origin policy, Auth, Tracks, uploads, Likes, realtime,
 recovery-logic and index-logic unit tests. Suites list their test files explicitly;
 they do not discover `*.local.js` or invoke seed/cleanup/Render checks or the index
 provisioning CLI. Recovery/index tests use mocks, not actual database operations.
@@ -140,6 +198,13 @@ No `.env`, Atlas, Cloudinary credentials or production data are required. Tests
 provide dummy configuration where needed, mock external services, and use local
 HTTP/Socket.IO listeners; allow loopback networking. No custom secrets are used
 in the workflow. Add new automated suites to `test:ci` explicitly.
+
+Run `npm run test:cors` for origin configuration and real loopback HTTP/Socket.IO
+tests. They exercise the actual app, both socket transports, exact origin
+reflection, GET/POST/PUT/PATCH/DELETE preflights with Authorization/Content-Type,
+REST errors, an existing frontend origin, denied lookalike/opaque origins and
+clients without Origin. Database reads are mocked;
+the suite never loads `.env`, connects to Atlas or creates Cloudinary assets.
 
 Run `npm run test:auth` for REST Auth/JWT tests. They use HTTP loopback with the
 real Auth router, authentication, JSON error middleware and rate limiter;
