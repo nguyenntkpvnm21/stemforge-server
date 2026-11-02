@@ -4,6 +4,7 @@ const Track = require('../models/Track');
 const User = require('../models/User');
 const { verifyAccessToken } = require('../config/jwt');
 const events = require('../services/track-events.service');
+const { createFrontendOriginPolicy } = require('../config/frontend-origins');
 
 const ID = /^[a-f\d]{24}$/i;
 const messages = {
@@ -23,12 +24,12 @@ function attachTrackRealtime(server, options = {}) {
     ...(userId ? { $or: [{ isPublic: true }, { artistId: userId }] } : { isPublic: true }),
   }).select('_id artistId isPublic likesCount').maxTimeMS(5000).lean().exec());
   const verify = options.verifyToken || verifyAccessToken;
-  const origin = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const frontendOrigins = createFrontendOriginPolicy();
   const io = new Server(server, {
-    cors: { origin },
+    cors: { origin: frontendOrigins.origins },
     maxHttpBufferSize: 16384,
     // No connectionStateRecovery: every reconnect must authenticate and join again.
-    allowRequest: (req, done) => done(null, !req.headers.origin || req.headers.origin === origin),
+    allowRequest: (req, done) => done(null, frontendOrigins.isAllowedOrigin(req.headers.origin)),
   });
   const rooms = new Map();
   const clients = new Map();
