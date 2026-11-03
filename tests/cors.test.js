@@ -166,7 +166,7 @@ for (const [label, origin] of [['localhost', LOCAL], ['Vercel preview', PREVIEW]
         method: 'OPTIONS',
         headers: {
           'Access-Control-Request-Method': method,
-          'Access-Control-Request-Headers': 'authorization,content-type',
+          'Access-Control-Request-Headers': 'authorization,content-type,idempotency-key',
         },
       });
       assert.equal(preflight.status, 204);
@@ -174,9 +174,13 @@ for (const [label, origin] of [['localhost', LOCAL], ['Vercel preview', PREVIEW]
       assert.ok(preflight.headers.get('access-control-allow-methods').split(',').includes(method));
       assert.match(preflight.headers.get('access-control-allow-headers'), /authorization/i);
       assert.match(preflight.headers.get('access-control-allow-headers'), /content-type/i);
+      assert.match(preflight.headers.get('access-control-allow-headers'), /idempotency-key/i);
     }
 
     const unauthorized = await f.send('/api/auth/me', origin);
+    for (const header of ['Idempotency-Replayed', 'Idempotency-Key-Expires-At', 'Retry-After']) {
+      assert.ok(list.headers.get('access-control-expose-headers').split(',').includes(header));
+    }
     assert.equal(unauthorized.status, 401);
     assertCors(unauthorized, origin);
     const invalidJson = await f.send('/api/auth/login', origin, {

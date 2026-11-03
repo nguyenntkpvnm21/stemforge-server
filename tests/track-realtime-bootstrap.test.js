@@ -6,13 +6,14 @@ const { EventEmitter } = require('node:events');
 const { setImmediate: tick } = require('node:timers/promises');
 
 function deferred() {
-  let resolve;
-  const promise = new Promise(done => { resolve = done; });
-  return { promise, resolve };
+  let resolve; let reject;
+  const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
 }
 function bootstrap(t) {
   const database = deferred();
   const index = deferred();
+  const idempotency = deferred();
   const calls = [];
   const process = new EventEmitter();
   process.env = {};
@@ -27,7 +28,10 @@ function bootstrap(t) {
     './app': {},
     './config/database': () => database.promise,
     './models/TrackLike': { init: () => { calls.push('index'); return index.promise; } },
-    mongoose: { disconnect: async () => { calls.push('db.disconnect'); } },
+    mongoose: { connection: { db: {} }, disconnect: async () => { calls.push('db.disconnect'); } },
+    './services/track-idempotency-index.service': { verifyReady: () => {
+      calls.push('idempotency'); return idempotency.promise;
+    } },
     './realtime/track-realtime': { attachTrackRealtime: () => {
       calls.push('attach');
       return { close: async () => { calls.push('realtime.close'); } };
@@ -41,7 +45,7 @@ function bootstrap(t) {
     setTimeout(fn, ms) { const timer = setTimeout(fn, ms); timers.add(timer); return timer; },
     clearTimeout,
   });
-  return { calls, database, index, process };
+  return { calls, database, index, idempotency, process };
 }
 
 test('bootstrap attaches Socket.IO only after DB/index readiness; shutdown drains before DB disconnect once', async t => {
@@ -50,17 +54,40 @@ test('bootstrap attaches Socket.IO only after DB/index readiness; shutdown drain
   f.database.resolve(); await tick();
   assert.deepEqual(f.calls, ['index']);
   f.index.resolve(); await tick();
-  assert.deepEqual(f.calls, ['index', 'attach', 'listen']);
+  assert.deepEqual(f.calls, ['index', 'idempotency']);
+  f.idempotency.resolve(); await tick();
+  assert.deepEqual(f.calls, ['index', 'idempotency', 'attach', 'listen']);
   f.process.emit('SIGTERM'); f.process.emit('SIGINT'); await tick();
-  assert.deepEqual(f.calls, ['index', 'attach', 'listen', 'realtime.close', 'db.disconnect']);
+  assert.deepEqual(f.calls, ['index', 'idempotency', 'attach', 'listen', 'realtime.close', 'db.disconnect']);
 });
 
-for (const stage of ['database', 'index']) test(`shutdown during ${stage} startup cannot start a late HTTP listener`, async t => {
+for (const stage of ['database', 'index', 'idempotency']) test(`shutdown during ${stage} startup cannot start a late HTTP listener`, async t => {
   const f = bootstrap(t);
-  if (stage === 'index') { f.database.resolve(); await tick(); }
+  if (stage !== 'database') { f.database.resolve(); await tick(); }
+  if (stage === 'idempotency') { f.index.resolve(); await tick(); }
   f.process.emit('SIGTERM'); await tick();
-  f.database.resolve(); f.index.resolve(); await tick();
+  f.database.resolve(); f.index.resolve(); f.idempotency.resolve(); await tick();
   assert.equal(f.calls.includes('listen'), false);
   assert.equal(f.calls.includes('attach'), false);
   assert.equal(f.calls.filter(call => call === 'db.disconnect').length, 1);
+});
+
+test('missing/incompatible idempotency indexes fail startup before attach/listen and disconnect DB', async t => {
+  const f = bootstrap(t);
+  f.database.resolve(); f.index.resolve(); await tick();
+  f.idempotency.reject(new Error('Indexes not provisioned')); await tick();
+  assert.equal(f.calls.includes('listen'), false);
+  assert.equal(f.calls.includes('attach'), false);
+  assert.ok(f.calls.includes('db.disconnect'));
+  assert.ok(f.calls.includes('exit:1'));
+});
+
+test('readiness rejection after shutdown does not listen, disconnect twice or report a new startup failure', async t => {
+  const f = bootstrap(t);
+  f.database.resolve(); f.index.resolve(); await tick();
+  f.process.emit('SIGTERM'); await tick();
+  f.idempotency.reject(new Error('Connection closed during shutdown')); await tick();
+  assert.equal(f.calls.includes('listen'), false);
+  assert.equal(f.calls.filter(call => call === 'db.disconnect').length, 1);
+  assert.equal(f.calls.includes('exit:1'), false);
 });

@@ -22,6 +22,7 @@ const cloudinary = require('../../src/config/cloudinary');
 const User = require('../../src/models/User');
 const Track = require('../../src/models/Track');
 const TrackLike = require('../../src/models/TrackLike');
+const Receipt = require('../../src/models/TrackCreateIdempotency');
 const authLimiter = require('../../src/middlewares/auth-rate-limit.middleware');
 
 function makeWave(index) {
@@ -47,10 +48,11 @@ function selection(count = 4) {
 
 async function startFixture(t, slots) {
   const records = [];
+  const receipts = new Map();
   const assets = new Map();
   const pending = new Map();
   const received = new EventEmitter();
-  const calls = { uploads: [], creates: [], requests: [], commits: 0, drops: 0 };
+  const calls = { uploads: [], creates: [], requests: [], commits: 0, drops: 0, receiptReads: 0 };
   const password = randomBytes(24).toString('hex');
   const user = new User({
     _id: new mongoose.Types.ObjectId(), username: 'Publish fixture',
@@ -81,11 +83,12 @@ async function startFixture(t, slots) {
   }));
   t.mock.method(mongoose.connection, 'transaction', async operation => {
     assert.equal(session, null);
-    const staged = [];
-    session = { staged };
+    session = { records: records.slice(), receipts: new Map(receipts) };
     try {
       const result = await operation(session);
-      records.push(...staged);
+      records.splice(0, records.length, ...session.records);
+      receipts.clear();
+      for (const [key, value] of session.receipts) receipts.set(key, value);
       calls.commits += 1;
       return result;
     } finally { session = null; }
@@ -96,7 +99,7 @@ async function startFixture(t, slots) {
     calls.creates.push(structuredClone(input));
     const doc = new Track({ ...input, createdAt: new Date() });
     await doc.validate();
-    session.staged.push(doc);
+    session.records.push(doc);
     return [doc];
   });
   const matches = (doc, filter) =>
@@ -104,6 +107,61 @@ async function startFixture(t, slots) {
     (filter.artistId === undefined || String(doc.artistId) === String(filter.artistId)) &&
     (filter.isPublic === undefined || doc.isPublic === filter.isPublic) &&
     (!filter.$or || filter.$or.some(part => matches(doc, part)));
+  const receiptKey = value => String(value.ownerId) + ':' + value.keyHash;
+  t.mock.method(Receipt, 'findOne', filter => {
+    let currentSession;
+    return {
+      read() { return this; }, readConcern() { return this; }, setOptions() { return this; }, lean() { return this; },
+      session(value) { assert.equal(value, session); currentSession = value; return this; },
+      async exec() {
+        calls.receiptReads += 1;
+        return (currentSession ? currentSession.receipts : receipts).get(receiptKey(filter)) ?? null;
+      },
+    };
+  });
+  t.mock.method(Receipt, 'create', async ([value], options) => {
+    assert.equal(options.session, session);
+    const key = receiptKey(value);
+    if (session.receipts.has(key)) throw Object.assign(new Error('Fixture duplicate'), {
+      code: 11000, keyPattern: { ownerId: 1, keyHash: 1 },
+    });
+    const row = new Receipt(value).toObject();
+    session.receipts.set(key, row);
+    return [row];
+  });
+  t.mock.method(Receipt, 'updateOne', (filter, update, options) => ({
+    async exec() {
+      assert.equal(options.session, session);
+      const key = receiptKey(filter);
+      const row = session.receipts.get(key);
+      if (!row || String(row._id) !== String(filter._id) ||
+          row.expiresAt.getTime() !== new Date(filter.expiresAt).getTime()) return { matchedCount: 0 };
+      session.receipts.set(key, { ...row, ...update.$set });
+      return { matchedCount: 1 };
+    },
+  }));
+  t.mock.method(Track, 'findOneAndUpdate', (filter, change, options) => ({
+    async exec() {
+      assert.equal(options.session, session);
+      const index = session.records.findIndex(doc => matches(doc, filter));
+      if (index < 0) return null;
+      const doc = new Track({ ...session.records[index].toObject(), ...change.$set });
+      await doc.validate();
+      session.records[index] = doc;
+      return doc;
+    },
+  }));
+  t.mock.method(Track, 'findOneAndDelete', filter => ({
+    session(value) { assert.equal(value, session); return this; },
+    async exec() {
+      const index = session.records.findIndex(doc => matches(doc, filter));
+      return index < 0 ? null : session.records.splice(index, 1)[0];
+    },
+  }));
+  t.mock.method(TrackLike, 'deleteMany', () => ({
+    session(value) { assert.equal(value, session); return this; },
+    async exec() { return { deletedCount: 0 }; },
+  }));
   t.mock.method(Track, 'findOne', filter => ({ async exec() { return records.find(doc => matches(doc, filter)) ?? null; } }));
   t.mock.method(Track, 'find', filter => {
     let skip = 0; let limit = 12; let sort;
@@ -180,27 +238,27 @@ async function startFixture(t, slots) {
       assert.equal(mongoose.connection.readyState, 0);
       assert.equal(destroy.mock.callCount(), 0);
     } finally {
-      records.length = 0; assets.clear(); received.removeAllListeners();
+      records.length = 0; receipts.clear(); assets.clear(); received.removeAllListeners();
       authLimiter.resetKey('127.0.0.1');
     }
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
-  async function send(path, { token, method = 'GET', body } = {}) {
+  async function send(path, { token, method = 'GET', body, headers = {} } = {}) {
     const url = new URL(path, base);
     assert.equal(url.origin, base, 'HTTP must stay on this fixture server');
     const multipart = body instanceof FormData;
     const response = await fetch(url, {
       method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(body && !multipart ? { 'Content-Type': 'application/json' } : {}) },
+        ...(body && !multipart ? { 'Content-Type': 'application/json' } : {}), ...headers },
       body: body === undefined ? undefined : multipart ? body : JSON.stringify(body),
       signal: AbortSignal.timeout(5000),
     });
     assert.equal(response.headers.get('cache-control'), 'no-store');
-    return { status: response.status, body: await response.json() };
+    return { status: response.status, body: response.status === 204 ? null : await response.json(), headers: response.headers };
   }
   return {
-    records, assets, calls, ownerId: String(user._id),
+    records, receipts, assets, calls, ownerId: String(user._id),
     async login() {
       const response = await send('/api/auth/login', { method: 'POST', body: { email: user.email, password } });
       assert.equal(response.status, 200);
@@ -274,9 +332,10 @@ function trackInput(slots, results, overrides = {}) {
   };
 }
 
-async function publish(fixture, input, token) {
+async function publish(fixture, input, token, key) {
   try {
-    const response = await fixture.send('/api/tracks', { token, method: 'POST', body: input });
+    const response = await fixture.send('/api/tracks', { token, method: 'POST', body: input,
+      headers: key ? { 'Idempotency-Key': key } : {} });
     if (response.status === 201) return { state: 'published', track: response.body.data };
     if ([400, 401, 413].includes(response.status)) return { state: 'rejected', response };
     return { state: 'unknown', response };

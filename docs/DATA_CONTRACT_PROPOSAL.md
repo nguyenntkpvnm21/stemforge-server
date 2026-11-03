@@ -26,6 +26,17 @@ policy, and multi-upload request/cleanup choices were not settled by this reply.
 
 ## 1. Current API and existing verification evidence
 
+November 3 local follow-up: optional POST Track idempotency has an account-scoped,
+case-sensitive header, original creation-receipt replay (including after edits or
+deletion) and a 24-hour expiry window. JSON allowlists and Track/Stem fields are
+unchanged. The existing 659 automated tests use mock/loopback/driver-stub evidence.
+A separate November 3 isolated MongoDB 8.0.34 / WiredTiger run passed 15 external
+probe groups, including two app processes, real rollback/commit retry and TTL
+deletion races. Multi-node failover and deployment remain unverified.
+See [implementation contract and mandatory index provisioning](TRACK_CREATE_IDEMPOTENCY.md).
+This does not approve the overall Draft contract or option A and does not change
+Cloudinary asset lifecycle semantics.
+
 The rules below come from current models/validators/controllers. The earlier
 245-test run and Render checks cover the released baseline. October 18 local
 feature verification passed 270 tests, including router HTTP tests with real
