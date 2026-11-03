@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 const TrackLike = require('../models/TrackLike');
 const trackResponseService = require('../services/track-response.service');
 const trackEvents = require('../services/track-events.service');
+const idempotency = require('../services/track-create-idempotency.service');
 const { parseTrackListFilters } = require('../validators/track-list-query.validator');
 const trackWriteOptions = {
   readPreference: 'primary',
@@ -148,6 +149,13 @@ async function createTrack(req, res, next) {
     });
   }
 
+  let key;
+  try { key = idempotency.parseKey(req); } catch (error) {
+    if (error instanceof idempotency.IdempotencyError) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    return next(error);
+  }
   const validationMessage = validateCreateTrackInput(req.body);
 
   if (validationMessage) {
@@ -157,6 +165,14 @@ async function createTrack(req, res, next) {
   }
 
   try {
+    if (key !== undefined) {
+      const receipt = await idempotency.createTrackWithKey({ ownerId: req.user._id, key, payload: req.body });
+      res.set({
+        'Idempotency-Replayed': String(receipt.replayed),
+        'Idempotency-Key-Expires-At': receipt.expiresAt.toISOString(),
+      });
+      return res.status(201).json(receipt.body);
+    }
     const data = await mongoose.connection.transaction(async (session) => {
       const [track] = await Track.create([{
         ...req.body,
@@ -169,6 +185,10 @@ async function createTrack(req, res, next) {
 
     return res.status(201).json({ data });
   } catch (error) {
+    if (error instanceof idempotency.IdempotencyError) {
+      if (error.retryAfter) res.set('Retry-After', String(error.retryAfter));
+      return res.status(error.status).json({ message: error.message });
+    }
     if (error.name === 'ValidationError') {
       return res.status(400).json({
         message: 'Track data failed validation.',

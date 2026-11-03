@@ -22,6 +22,7 @@ app.set('trust proxy', trustProxyHops);
 app.use(
   cors({
     origin: frontendOrigins.origins,
+    exposedHeaders: ['Idempotency-Replayed', 'Idempotency-Key-Expires-At', 'Retry-After'],
   })
 );
 

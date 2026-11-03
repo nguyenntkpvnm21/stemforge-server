@@ -545,6 +545,23 @@ router.get('/', optionalAuthenticate, listTracks);
  *       their actual JSON types. This endpoint stores supplied metadata;
  *       audio upload is a separate endpoint, and supplied URLs are not verified.
  *       The example audio URL is a placeholder and cannot play audio.
+ *       Optional Idempotency-Key is scoped to this account and case-sensitive.
+ *       Same key and parsed payload replay the original 201 JSON receipt for
+ *       24 hours, without extending expiry, even after PATCH/Like/DELETE.
+ *       Object property order is ignored; string whitespace, omitted defaults
+ *       and array order matter. Different valid payloads conflict. Invalid
+ *       input/auth does not consume a key. After expiry the same key can create
+ *       a new Track. Retry unresolved requests with the same key and payload.
+ *     parameters:
+ *       - in: header
+ *         name: Idempotency-Key
+ *         required: false
+ *         description: One opaque operation key, preferably a UUID; repeated headers are rejected.
+ *         schema:
+ *           type: string
+ *           minLength: 16
+ *           maxLength: 128
+ *           pattern: '^[A-Za-z0-9._:-]{16,128}$'
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -569,6 +586,16 @@ router.get('/', optionalAuthenticate, listTracks);
  *       '201':
  *         description: Track created successfully.
  *         headers:
+ *           Idempotency-Replayed:
+ *             description: Present only for keyed requests; true replays the original creation receipt.
+ *             schema:
+ *               type: string
+ *               enum: ['true', 'false']
+ *           Idempotency-Key-Expires-At:
+ *             description: Key retention boundary; replay does not extend it.
+ *             schema:
+ *               type: string
+ *               format: date-time
  *           Cache-Control:
  *             schema:
  *               type: string
@@ -596,6 +623,37 @@ router.get('/', optionalAuthenticate, listTracks);
  *               modelValidation:
  *                 value:
  *                   message: Track data failed validation.
+ *       '409':
+ *         description: Key/payload conflict, or unresolved same-key contention. Only contention includes Retry-After.
+ *         headers:
+ *           Retry-After:
+ *             schema:
+ *               type: integer
+ *               minimum: 1
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               mismatch:
+ *                 value:
+ *                   message: Idempotency-Key was already used with a different Track payload.
+ *               resolving:
+ *                 value:
+ *                   message: Track creation for this key is still being resolved. Retry with the same key and payload.
+ *       '503':
+ *         description: Unable to determine the keyed operation outcome; retry with the same key and payload.
+ *         headers:
+ *           Retry-After:
+ *             schema:
+ *               type: integer
+ *               minimum: 1
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               message: Unable to confirm Track creation. Retry with the same Idempotency-Key and payload.
  *       '401':
  *         description: Missing, invalid, or expired credentials.
  *         content:

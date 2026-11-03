@@ -51,6 +51,14 @@ author label/avatar. A database lookup error is an error response, not artist=nu
 
 ## Responses and input allowlists
 
+Local backend follow-up (November 3; not Render verified): POST Track additionally
+accepts optional account-scoped Idempotency-Key with immutable original 201 replay
+for 24 hours, payload-mismatch 409 and unresolved 409/503 retry handling. There are
+no new Track/Stem input or response fields. After expiry, reusing the key may create
+a new Track; replay after DELETE is the original receipt, not recreation.
+See [exact HTTP/header contract, index release gate and evidence limits](TRACK_CREATE_IDEMPOTENCY.md).
+The overall contract remains Draft; implementation authorization is not group approval.
+
 - GET `/api/tracks`: 200 `{data: Track[], pagination:{page,limit,total,totalPages}}`.
   Public Tracks only for guests and signed-in users. Default page=1/limit=12,
   limit 1-100; newest-first then _id descending. Zero total means totalPages=0.
