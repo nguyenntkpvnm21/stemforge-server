@@ -189,8 +189,9 @@ npm ci
 npm test
 ```
 
-`npm test` delegates to `npm run test:ci`: CORS/origin policy, Auth, Tracks, uploads, Likes, realtime,
-recovery-logic and index-logic unit tests. Suites list their test files explicitly;
+`npm test` delegates to `npm run test:ci`: CORS/origin policy, Auth, Tracks, uploads,
+multi-stem publishing, Likes, realtime, recovery-logic and index-logic tests.
+Suites list their test files explicitly;
 they do not discover `*.local.js` or invoke seed/cleanup/Render checks or the index
 provisioning CLI. Recovery/index tests use mocks, not actual database operations.
 
@@ -650,6 +651,15 @@ npm run test:likes
 Track tests include models, input validation, controller access rules, deletion,
 response enrichment, real-router optional authentication, and Swagger consistency.
 Audio upload tests: `npm run test:uploads`.
+
+Multi-request publishing integration: `npm run test:publish-flow`. This uses the
+real localhost HTTP app, login/JWT, multipart parser and upload service with an
+in-memory DB adapter and mocked Cloudinary stream. It checks 1/4 stems,
+out-of-order completion, reuse after upload/validation/auth failures, and a lost
+Track creation response. No .env, Atlas, Render or real assets are used. This is
+a reference test coordinator, not proof of a frontend upload implementation.
+See [verification, sample payload and remaining backend gaps](docs/MULTI_STEM_UPLOAD_VERIFICATION.md).
+Option A remains a proposal pending group confirmation; the contract stays Draft.
 
 Automated baseline before the NUL validation follow-up:
 
