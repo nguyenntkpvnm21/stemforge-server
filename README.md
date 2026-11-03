@@ -190,7 +190,7 @@ npm test
 ```
 
 `npm test` delegates to `npm run test:ci`: CORS/origin policy, Auth, Tracks, uploads,
-multi-stem publishing, Likes, realtime, recovery-logic and index-logic tests.
+idempotency, multi-stem publishing, Likes, realtime, recovery-logic and index-logic tests.
 Suites list their test files explicitly;
 they do not discover `*.local.js` or invoke seed/cleanup/Render checks or the index
 provisioning CLI. Recovery/index tests use mocks, not actual database operations.
@@ -660,6 +660,29 @@ Track creation response. No .env, Atlas, Render or real assets are used. This is
 a reference test coordinator, not proof of a frontend upload implementation.
 See [verification, sample payload and remaining backend gaps](docs/MULTI_STEM_UPLOAD_VERIFICATION.md).
 Option A remains a proposal pending group confirmation; the contract stays Draft.
+
+Optional Track creation idempotency: `npm run test:idempotency` checks account-scoped
+keys, original 201 replay, concurrency/rollback/expiry using mocks, installed-driver
+retry logic and real loopback HTTP, including lost-response publishing retries.
+The suite runs explicitly in test:ci; index/readiness tests run in test:index and
+test:realtime. [Contract and mandatory provisioning/release steps](docs/TRACK_CREATE_IDEMPOTENCY.md)
+describe the 24-hour window and immutable receipt after PATCH/Like/DELETE.
+Startup refuses traffic until the two new receipt indexes are provisioned.
+Isolated MongoDB 8.0.34 / WiredTiger verification passed 15 external probe groups,
+including two app processes, commit retry, rollback and a real TTL-monitor race.
+These are separate from the 659 automated tests; see the linked verification
+record for commands, cleanup and the remaining multi-node failover limitation.
+The reusable probe has its own pinned tools package and is excluded from CI:
+
+```powershell
+npm.cmd ci --prefix scripts/verification/track-idempotency --ignore-scripts
+node scripts/verification/track-idempotency/run.cjs
+```
+
+Run after the root npm ci on Node 24. It creates a new local replica set; reports,
+binary cache and temporary DB files stay outside the checkout. No .env or shared
+database credentials are needed. The final review reran 659 automated tests and
+all 15 probe groups successfully; these counts are independent.
 
 Automated baseline before the NUL validation follow-up:
 

@@ -1,6 +1,112 @@
 # StemForge project status
 
-Last updated: November 2, 2026 (Asia/Saigon).
+Last updated: November 3, 2026 (Asia/Saigon).
+
+## Optional Track creation idempotency (local implementation; not deployed)
+
+Worktree branch `feature/track-create-idempotency`, based on fetched dev
+`38161532e4515d2b0036988dc90b0728f4473275` (PR #52 merged).
+See [actual contract and release procedure](TRACK_CREATE_IDEMPOTENCY.md) and the
+[preserved earlier design](TRACK_CREATE_IDEMPOTENCY_DESIGN.md). The original
+checkout, design and handoff files remain intact. No commit/push/deploy or shared
+DB/index operation is part of this implementation turn.
+
+POST /api/tracks accepts an optional single ASCII Idempotency-Key, 16-128 chars,
+case-sensitive and account-scoped. No-key callers retain the existing path.
+The same key/parsed payload replays the original serialized 201 receipt and IDs,
+including after PATCH/Like/DELETE. A valid changed payload returns 409; unresolved
+contention has Retry-After, and unresolved commit/DB outcomes return 503. Existing
+validation/auth failures do not consume keys. Receipt and Track/enrichment commit
+in one session/transaction, sequentially. Expiry is 24 hours without replay
+extension; after expiry a key may create a new Track.
+
+An internal receipt collection has a compound owner/key unique index and a
+single-field expiry TTL index. Track/Stem schema and input allowlists are unchanged.
+The provisioning CLI supports dry-run/apply, exact catalog verification and safe
+rerun without syncIndexes; startup checks these indexes before listen, retaining
+the existing TrackLike readiness stage. **Provisioning is mandatory before
+release; startup will fail closed if the receipt collection/indexes are absent.**
+REST CORS exposes replay/expiry/Retry-After; the allowed origins and Socket.IO
+policy are unchanged. Asset lifecycle work remains separate.
+
+Actual Windows / Node 24.15.0 full `npm.cmd test` passed **659 tests**, zero
+failures/cancellations/skips: CORS 28, Auth 77, Tracks 317, idempotency 32, uploads
+59, multi-stem publishing 7, Likes 51, realtime/bootstrap 40, recovery 26, indexes
+22. The targeted runs are not added again. Tests use loopback HTTP, synthetic
+credentials/audio and DB/provider mocks; installed-driver withTransaction tests
+use stubbed commits to verify callback versus commit retry with no DB connection.
+The old no-key publishing cases and keyed loss-before-handler/loss-after-commit
+retries pass. No actual Like mutation is introduced by the new membership-snapshot
+probe; existing REST Like suites cover mutation behavior.
+
+**Real MongoDB follow-up, November 3:** after the initial mock-only checkpoint,
+MongoMemoryReplSet 11.3.0 started official MongoDB 8.0.34 (Windows x64), WiredTiger,
+one authenticated replica-set member on 127.0.0.1 and a random port. The package,
+binary cache and test-only workers are outside the repository. No application
+dependency, runtime source or automated test changed in this verification turn.
+
+The final external run passed **15/15 probe groups**, separately from the existing
+659 automated tests (not rerun). It exercised actual application bootstrap,
+HTTP routes/controllers, authentication and independent MongoDB connections in
+two app processes. Twelve concurrent identical requests produced one Track and
+one receipt with identical response/Track/stem IDs. Different concurrent payloads
+returned 201/409; the same key under two accounts produced independent Tracks.
+Failures before/after enrichment and after the actual receipt insert rolled back
+both records; retry then succeeded. Lost HTTP response after commit replayed from
+the other process. mongod failCommand with UnknownTransactionCommitResult caused
+two commit commands and one Track insert. A separate test-only wrapper suppressed
+one successful commit ACK and confirmed commit retry without duplicate insertion.
+
+Sustained unknown-commit faults returned 503/Retry-After. After clearing the fault,
+six retries returned 409 while the original server transaction remained unresolved;
+the next succeeded, about 69.9 seconds later, with exactly one Track/receipt.
+Neither a 503 nor an absent receipt authorized an assumption of rollback.
+Expired but retained receipts were safely reused under two-process contention.
+The actual TTL monitor then deleted an expired receipt while replacement was
+paused: an update WriteConflict/TransientTransactionError caused callback retry
+(two insertion attempts, one new Track). Actual PATCH/DELETE followed by replay
+kept the original receipt without recreating the deleted Track.
+
+The actual CLI passed dry-run -> apply -> dry-run and repeat apply with no extra
+indexes; startup failed before listen for missing indexes and incorrect unique/TTL
+options. All DDL was restricted to the newly generated test replica set. Every
+run, including two earlier probes with overly strict failure expectations,
+closed children/connections, dropped only its own temporary database, stopped
+mongod and removed its data directory in finally. The original checkout/handoff
+files are preserved. Full commands, failed attempts, case results and local
+evidence location: [verification record](TRACK_CREATE_IDEMPOTENCY.md#isolated-real-mongodb-verification-november-3-2026).
+
+**Remaining limits:** one-node transactions/concurrency were verified; primary
+stepdown, elections, multi-node majority durability and real network ACK loss were
+not. GitHub/Ubuntu, Render and shared Atlas were not checked. No Cloudinary call,
+production fault injection or shared/production index provisioning occurred.
+Release still requires review and provisioning the two indexes on the explicitly
+selected deployment DB before startup. The prior 611-test checkpoint is historical.
+
+**Final pre-commit review:** fetch confirmed origin/dev is still the base SHA above
+(no integration needed). Parser validation now rejects final line terminators as
+well as all other non-allowlisted characters; the existing parser test includes
+the regression assertions. Full npm test was rerun: **659 passed**, zero
+fail/cancel/skip. The reusable real-DB probe and a separate private tool manifest/
+lockfile are now versioned under scripts/verification/track-idempotency. A fresh
+checkout can install the tool with npm ci --prefix and --ignore-scripts and run
+it explicitly, without the earlier Temp scripts or any project .env. The app
+lockfile/runtime dependencies are unchanged; CI does not invoke the optional probe.
+
+The versioned runner also passed **15/15 groups** on final source, independently
+of the 659 automated tests. Its sustained-fault retry completed after 70.2 seconds
+(503, then six 409s, then 201); TTL deletion again caused safe transaction retry.
+Explicit sessions ended 20/20 and 21/21 in the two app processes. Verification and
+cleanup both passed; child processes, temporary DB, connections, mongod and data
+directory were cleaned. Report paths and reproducible commands are in the linked
+verification record. Original external scripts and handoff fingerprints remain
+unchanged. Staging stays empty; no commit/push or shared DB operation was done.
+
+`npm ci` succeeded with the unchanged application lockfile and reported 8 audit advisories
+(6 moderate, 2 high). Audit analysis/fixes remain separate; the app dependency graph
+is unchanged. The opt-in tool uses its own pinned lockfile.
+The overall Track/Stem contract and option A remain Draft despite authorization
+of these backend implementation choices.
 
 ## Frontend CORS allowlist follow-up (November 2, 2026; local only)
 
