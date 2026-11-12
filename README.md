@@ -22,6 +22,27 @@ Realtime MVP passed scoped REST/Socket.IO checks on Render Live 86aa3cb.
 See the realtime section for verified scope and remaining local-only checks.
 Audio/stem replacement remains pending.
 
+## Upload frontend handoff (MVP choice agreed; acceptance pending)
+
+See the [source-reviewed Upload handoff](docs/UPLOAD_FRONTEND_HANDOFF.md) for
+existing endpoints, exact payload mapping, retries and client state boundaries.
+It describes one multipart audio file per request followed by one Track with
+1-4 ordered stems. Nguyen supplied Phuc's agreement to this MVP with at most two
+uploads in flight, and his frontend PR #6 report at short SHA `8bd80b3`.
+That selects the client workflow, not a batch endpoint or approval of every
+retry rule. Code/preview acceptance of PR #6 remains pending in this handoff.
+Optional creation idempotency protects only `POST /api/tracks`, not audio uploads;
+successful uploads have no general asset-release/orphan-cleanup API.
+
+This documentation review uses fetched `origin/dev` at `50315205` (PR #53).
+Fetched `origin/main` is `f9692e93` (PR #54), with the same tracked source tree.
+Git release references do not prove the current Render deployment or frontend
+integration. The [dated review checkpoint](docs/PROJECT_STATUS.md#release-and-integration-checkpoint-november-12-2026)
+separates supplied/historical evidence from checks performed for this handoff.
+The [Track/Stem contract](docs/data-contract.md), its
+[proposal](docs/DATA_CONTRACT_PROPOSAL.md) and realtime proposal remain **Draft**.
+Older dated verification sections below retain their original scope.
+
 ## Requirements
 
 - Node.js 24
@@ -659,7 +680,9 @@ out-of-order completion, reuse after upload/validation/auth failures, and a lost
 Track creation response. No .env, Atlas, Render or real assets are used. This is
 a reference test coordinator, not proof of a frontend upload implementation.
 See [verification, sample payload and remaining backend gaps](docs/MULTI_STEM_UPLOAD_VERIFICATION.md).
-Option A remains a proposal pending group confirmation; the contract stays Draft.
+Option A and the two-request client queue were subsequently agreed by Phuc as
+reported in the Upload handoff. The overall contract remains Draft; this test
+coordinator is not evidence of PR #6 frontend acceptance.
 
 Optional Track creation idempotency: `npm run test:idempotency` checks account-scoped
 keys, original 201 replay, concurrency/rollback/expiry using mocks, installed-driver

@@ -1,8 +1,172 @@
 # StemForge project status
 
-Last updated: November 3, 2026 (Asia/Saigon).
+Last updated: November 12, 2026 (Asia/Saigon).
 
-## Optional Track creation idempotency (local implementation; not deployed)
+## Release and integration checkpoint (November 12, 2026)
+
+This is a documentation/source review, not a new deployment or live acceptance
+run. Five documents are in scope: README, this status file, DATA_CONTRACT_PROPOSAL,
+data-contract.md and the new [frontend Upload handoff](UPLOAD_FRONTEND_HANDOFF.md).
+The original checkout and its existing handoff/evidence files are preserved.
+
+### Git/source facts checked in this review
+
+- After `git fetch origin`, `origin/dev` remains
+  `50315205ef143a5d70b486931f6bba4cadc5ff59` (PR #53), matching the supplied base.
+- Fetched `origin/main` is `f9692e93cc359ea37410d451bf3758df584adb16` (PR #54).
+  Its tracked tree matches dev. Git merge history is not evidence that Render
+  currently runs that SHA, nor that the frontend is integrated with it.
+- Work is isolated on `docs/upload-frontend-handoff` from origin/dev. The original
+  checkout remains on `feature/cors-frontend-origins`; another worktree's pending
+  My Tracks seed changes are not incorporated or modified.
+- Current source supports one authenticated MP3/WAV/FLAC upload per multipart
+  request, 20 MiB/file, ten authenticated attempts/account/15 minutes, followed
+  separately by Track creation with 1-4 ordered StemInput objects. JWT lifetime,
+  exact-origin CORS, field allowlists and optional creation-receipt semantics
+  were checked against their implementation.
+- Idempotency-Key applies only to Track creation. Upload outcomes may remain
+  unknown and successful uploads have no general asset-release/cleanup API.
+  Rejected-provider-result cleanup is a narrower, existing per-attempt action.
+
+### Supplied and historical evidence, not newly repeated acceptance
+
+The downloaded handoff supplies the dev/main release references and refers to
+frontend Auth PR #4 and previous acceptance work. Backend source/Git can confirm
+the implementation and release references, but this review did not inspect that
+frontend PR, query Render, or inspect live DB/CDN state. It cannot establish
+present deployment, browser/mixer behavior, seed acceptance or contract approval.
+
+The earlier **659 automated tests** and **15 isolated real-MongoDB probe groups**
+are the dated November 3 records below and in TRACK_CREATE_IDEMPOTENCY.md. They
+remain distinct from any checks run for this handoff. The older Render checkpoints
+retain their own dates/scopes; no new live result is inferred from them.
+
+### Previously supplied release and frontend acceptance reports
+
+The reports supplied by Nguyen close parts of the earlier release backlog.
+They are recorded here with attribution, not as checks repeated by this review:
+
+- Nguyen supplied deployment-target CLI results: apply created the receipt
+  collection and both indexes, then dry-run reported `ready: true`, `missing: []`.
+  This is evidence for that reported target; a new target still needs readiness
+  verification. This documentation task performs no provisioning.
+- The supplied November 7 Render report passed **10/10 scoped groups, 23 HTTPS
+  requests** for new-key creation/replay, payload mismatch, legacy no-key callers,
+  invalid keys, PATCH/DELETE then replay, My Tracks/private access and the PR #3
+  alias CORS headers. The reported fixture cleanup retained the receipt for TTL;
+  no Cloudinary upload occurred. The deployed SHA was supplied by Nguyen, not
+  emitted by `/api/health`. These results do not establish Render concurrency,
+  production fault injection, multi-node failover or physical TTL deletion after
+  waiting 24 hours.
+- On November 8, Nguyen reported redeploying `f9692e9`, new startup/Live logs and
+  a subsequent health `status: ok` after earlier timeouts. This is a recovery
+  observation, not a diagnosed outage cause or a present uptime guarantee.
+- The supplied Auth PR #4 report at
+  `ed3b41bc1b8a4b7ae8ee6c6789af72d1b1fe35d0` passed **10/10 preview acceptance
+  groups with real Render APIs**. Its merge into dev was reported in Phuc's
+  subsequent PR #5 handoff, not independently checked by this backend review.
+- For frontend PR #5 at `8ae03cb791f708ffab9c3d177c26b2f5fb3bb55c`, the supplied
+  Codex report passed **18/18 mock probe groups**. Phuc subsequently reported
+  **5/5 direct preview acceptance items**: login and 13-owner-Track pagination
+  (12+1, 10 public/3 private), reload/me, owner public/private detail and actual
+  mixer playback, persisted Like/Unlike restored to its starting state, and
+  sign-out/private 404. Seed preservation was reported. These are distinct
+  evidence sets, not a combined automated-test count. PR #5 merge has not been
+  confirmed in the supplied handoff used for this checkpoint.
+
+### New local checks for this documentation review
+
+New Node 24.15.0 `npm.cmd test` / `test:ci` completed successfully on this dev
+source: **659 tests**, independently rerun rather than inherited from the old
+checkpoint. The suites are CORS 28, Auth 77, Tracks 317, idempotency 32, uploads 59,
+multi-stem publishing 7, Likes 51, realtime/bootstrap 40, recovery 26 and indexes 22.
+This includes the repository guidance's Track/upload/Like checks. Tests use
+synthetic configuration, mocks/driver stubs and localhost HTTP/Socket.IO; they do
+not establish a live Upload UI, real uploads, Render health or DB acceptance.
+
+An initial attempt reused dependencies through NODE_PATH: CORS passed 28/28,
+but Auth passed 72/77 and failed five isolated child-process configuration cases
+because their sanitized environment excludes NODE_PATH. That attempt stopped
+before later suites and is not counted in the successful 659-test run. A clean
+`npm.cmd ci --ignore-scripts --no-audit --no-fund` in this temporary worktree
+resolved the dependency layout; source, tests and the lockfile were unchanged.
+
+Document checks passed for exactly five paths, 59 local links/anchors and 12
+JSON examples; the four-stem handoff payload passes the current input validator.
+Whitespace checks passed, staging remains empty, and hashes of 28 original
+handoff/evidence files and the downloaded input remain unchanged. The review
+diff includes the new handoff without staging it. These checks are separate
+from live acceptance. No runtime, test, dependency manifest, DB/index,
+Render configuration or provider asset is
+changed; no seed, cleanup or real-database probe is run.
+
+### Upload MVP agreement and PR #6 report supplied by Nguyen
+
+Phuc has now agreed to option A: 1-4 stems via existing single-file uploads,
+at most two requests in flight, then one Track. This supersedes the earlier
+"option A pending agreement" statements, while the overall Track/Stem and
+realtime contracts remain **Draft**.
+
+Phuc reports frontend [PR #6](https://github.com/Ngocphuc-IS/stemforge-client/pull/6),
+base dev, short SHA `8bd80b3`: file names/order/removal, Track metadata,
+Waiting/Uploading/Uploaded/Failed states, per-slot retry with successful results
+retained, a 429 countdown/resume, keyed create and navigation to Track detail.
+He reports a localhost happy-path run as `phucphuc`: four uploads returned 201,
+Track creation succeeded and the mixer played all four stems. This review did
+not inspect frontend source or independently check that run, the exact API target
+or the Vercel preview. Full SHA/preview and code/live acceptance remain to be
+established before PR #6 merge.
+
+The reported key-reset rule for form changes/4xx needs focused review against
+the backend contract: unresolved 409 contention retains key/body; mismatch stops
+for reconciliation; form edits after an unknown result must not silently create
+a new intent/key. General 4xx handling must preserve the reported 408/429 recovery
+exceptions. Other review scope includes 429 queue concurrency/resume, account
+change and stale callbacks, replay expiry, and reload/re-login recovery boundaries.
+These are review questions from the supplied summary, not reproduced defects.
+
+Phuc's request to remove the Track `Test upload 1` is recorded but not executed.
+Resolve its exact ID/owner and exclude seed/demo records first. Track DELETE
+does not clean provider assets; any Cloudinary cleanup requires a separate,
+explicitly scoped decision. No DB/CDN cleanup occurred in this documentation task.
+
+### Independent PR #6 review follow-up (November 12)
+
+Frontend PR #6 is open at `8bd80b3cc8ddf4fa398c64d92d8f379d669a770e`, against
+dev `9b122ea438d17f68422437a0a8670f1ae735f4fa`. The earlier PR #5 is now confirmed
+merged in that frontend history. Its Upload preview's JavaScript matches the
+reviewed build. Lint/build passed with ten existing warnings. A fourteen-scenario
+matrix and a focused truncated-201 probe ran on localhost and the Vercel bundle
+using mocked upload/create/recovery responses: seven matrix cases met the
+expected behavior, while seven and the extra probe reproduced five issues
+(409/unreadable-201 key reset, form-edit reset after unknown commit, post-expiry
+retry, stale create navigation, and 50-MiB/OGG/M4A limits differing from the API).
+These external probes
+are not added to the 659 backend automated tests or Phuc's localhost report.
+
+Real GET/preflight responses omitted Allow-Origin for the Upload preview, so
+browser live integration is blocked by the exact-origin policy. Retry-After and
+both idempotency headers are already exposed. Configuration was not changed;
+PR #6 is not accepted for merge. Full reproduction details and the preview
+origin are in the [handoff follow-up](UPLOAD_FRONTEND_HANDOFF.md#independent-pr-6-sourcebrowser-review-november-12).
+
+Read-only DB inspection identified the cleanup candidate as Track
+`6af59201666407c763e58d68`, owner `6aee5b0d33ea9c4d1a428b9b` (`phucphuc`), exact
+title `Test upload 1`, public, four stems, zero Likes. It is not a seed/demo ID;
+all 13 seed IDs remain present. No Track/User/Like or Cloudinary asset was
+created, changed or deleted. The DB connection was closed in finally. Cleanup
+is still reserved for Nguyen's separately executed, identity-checked REST DELETE.
+A real Render detail GET confirmed the same candidate with HTTP 200. Before/after
+fingerprints of 2 Users, 16 Tracks and 0 Likes are unchanged; seed/demo/assets are
+preserved. The isolated frontend review checkout is clean and its Vite server
+was stopped.
+
+All dated sections below retain their historical meaning, including their then-
+pending deployment statements and separate evidence. DB/Render operations and
+branch synchronization are outside this review. All five changes remain unstaged
+and uncommitted for the owner's review; no push was performed.
+
+## Historical checkpoint: Track creation idempotency (November 3, 2026)
 
 Worktree branch `feature/track-create-idempotency`, based on fetched dev
 `38161532e4515d2b0036988dc90b0728f4473275` (PR #52 merged).
@@ -108,7 +272,7 @@ is unchanged. The opt-in tool uses its own pinned lockfile.
 The overall Track/Stem contract and option A remain Draft despite authorization
 of these backend implementation choices.
 
-## Frontend CORS allowlist follow-up (November 2, 2026; local only)
+## Historical checkpoint: frontend CORS allowlist (November 2, 2026; local only)
 
 Branch: `feature/cors-frontend-origins`, based on `origin/dev` **1e25c0d** after fetch.
 Prepared for a feature -> dev pull request. No PR merge, Render environment
@@ -151,13 +315,14 @@ Render verification of this new allowlist is **pending**. The permanent technica
 demo Track and all Cloudinary assets were untouched; no production data cleanup
 was needed. Existing local handoff files and .env are preserved.
 
-## Current summary and backlog (release 86aa3cb)
+## Historical release summary and backlog (release 86aa3cb)
 
 Render Live: **86aa3cb2d2f5e56a5f142cacb79128c7cb74385a**, confirmed by Nguyen.
 `main`, `dev`, `origin/main` and `origin/dev` are synchronized to this release;
 current branch is `dev`. Four release-document updates remain uncommitted.
-This summary describes the current state; dated checkpoints below retain their
-original scope, pending-work statements and separate verification evidence.
+This summary describes that release's state; the November 12 checkpoint above
+records later source checks and supplied release/browser reports. Dated sections
+below retain their original scope and separate verification evidence.
 
 ### Backend: implemented scope and Render-verified behavior
 

@@ -1,6 +1,7 @@
 # Data contract proposal for discussion with Phuc
 
-**Status: Draft - not approved.** Updated October 19, 2026. Released backend:
+**Status: Draft - not approved.** Handoff reviewed November 12, 2026.
+The October 19 response-review checkpoint used released backend:
 `72424fa`; artist/likedByMe previously passed real Render HTTP verification
 (12/12 groups), search/filtering subsequently passed 10/10 Render groups, and
 tag/sort/NUL validation passed 12/12 actual Render groups on October 19.
@@ -12,6 +13,27 @@ Read `docs/data-contract.md` and `.json` from branch `docs/data-contract` at
 Retain existing field names and response wrappers. The old draft's statement
 that Track APIs are unimplemented is obsolete. See the updated
 [contract and response sample](data-contract.md).
+
+## November 12 Upload handoff review and limited MVP agreement
+
+The [frontend Upload handoff](UPLOAD_FRONTEND_HANDOFF.md) distinguishes current
+backend behavior from proposed client orchestration. This review compared the
+routes, validators, upload service, JWT/CORS configuration and creation-receipt
+logic at fetched `origin/dev` `50315205` with the supplied document. It did not
+inspect frontend PR #4 or perform a Render/DB/Cloudinary acceptance run.
+
+Nguyen subsequently supplied Phuc's agreement to option A (separate single-file
+uploads followed by one Track) and at most two uploads in flight. Phuc reports
+frontend PR #6 at short SHA `8bd80b3` and a localhost happy-path run with real
+APIs. Those reports select the MVP direction, not code/preview acceptance or
+approval of the reported generic 4xx/form-edit key reset. Recovery semantics
+still follow the backend contract; review unresolved 409s and edits after an
+unknown publish result before merge. Reload recovery and asset lifecycle remain
+open work/decisions. There is no new batch endpoint, general asset cleanup,
+stem replacement or approval of the overall Draft contract in this update.
+Track creation idempotency does not make uploads idempotent; expiry and uncertain
+outcomes still require reconciliation. See the
+[current evidence boundary](PROJECT_STATUS.md#release-and-integration-checkpoint-november-12-2026).
 
 ## Phuc's feedback on the original contract PR
 
@@ -26,16 +48,17 @@ policy, and multi-upload request/cleanup choices were not settled by this reply.
 
 ## 1. Current API and existing verification evidence
 
-November 3 local follow-up: optional POST Track idempotency has an account-scoped,
-case-sensitive header, original creation-receipt replay (including after edits or
+Historical November 3 local follow-up: optional POST Track idempotency uses an
+account-scoped, case-sensitive header, original creation-receipt replay (including after edits or
 deletion) and a 24-hour expiry window. JSON allowlists and Track/Stem fields are
 unchanged. The existing 659 automated tests use mock/loopback/driver-stub evidence.
 A separate November 3 isolated MongoDB 8.0.34 / WiredTiger run passed 15 external
 probe groups, including two app processes, real rollback/commit retry and TTL
-deletion races. Multi-node failover and deployment remain unverified.
+deletion races. Multi-node failover and deployment were not verified by that run.
 See [implementation contract and mandatory index provisioning](TRACK_CREATE_IDEMPOTENCY.md).
-This does not approve the overall Draft contract or option A and does not change
-Cloudinary asset lifecycle semantics.
+That historical run did not approve the overall Draft contract or option A, and
+did not change Cloudinary asset lifecycle semantics. The later limited MVP
+agreement is recorded above, separately from implementation verification.
 
 The rules below come from current models/validators/controllers. The earlier
 245-test run and Render checks cover the released baseline. October 18 local
@@ -47,7 +70,8 @@ POST/PATCH now include enrichment in their write transaction, with sequential
 session-bound reads and response sent after commit. Subsequent real-Atlas checks
 verified rollback on both author/membership lookup failures and successful
 responses, plus recovery of orphan fixture Likes without upgrading incomplete
-verification. The latest automated total is 306 (Tracks 170, Likes 51, uploads 59,
+verification. That transaction-follow-up checkpoint totaled 306 automated tests
+(Tracks 170, Likes 51, uploads 59,
 recovery 26). Subsequent actual Render requests passed all 12 groups, covering
 response/privacy/input rules, per-account Like state, public/private access,
 missing authors, cascade, and deployed Swagger. Fixture cleanup and preservation
@@ -174,17 +198,18 @@ quota, 500 internal, 502 upload storage failure. Handle status and message; do n
 depend on exact message text or expect structured error codes. Track/Like/upload
 responses use Cache-Control: no-store. Handle 204 without parsing JSON.
 
-## 2. New proposals, not implemented or jointly approved
+## 2. MVP integration choice and remaining proposals
 
 - Preserve the above contract. A compatible client can upload 1-4 files through
   separate existing requests, keep each result paired with its selected stem
   name/order, wait for all successful results, then POST one Track with
   `stems = results.map(r => ({name, audioUrl, duration, fileSize}))`. Pick these
   fields explicitly; never spread publicId into stems. Parallelize only with
-  bounded concurrency if chosen. This orchestration is a proposal, not a verified
-  client flow or automatic acceptance of the document's multi-upload requirement.
-  Do not create a partial Track after failure; retries and cleanup of successfully
-  uploaded but unreferenced files need an agreed policy (not available today).
+  bounded concurrency: Phuc has agreed to at most two in flight. This choice
+  and his PR #6 report do not establish verified frontend acceptance. Do not
+  create a partial Track after failure; the key/recovery rules in the handoff
+  still apply, and cleanup of successfully uploaded but unreferenced files has
+  no general API today.
 - The main mixer conventions and activity-based account model are confirmed in
   Phuc's feedback above. The shorter-stem-silence rule, file-alignment details,
   FLAC frontend compatibility, and actual frontend integration were not separately
@@ -195,8 +220,10 @@ responses use Cache-Control: no-store. Handle 204 without parsing JSON.
 ## 3. Earlier five-question proposal (historical, not the source of the feedback)
 
 Questions 1-2 are substantially addressed by Phuc's original-PR feedback above.
-Questions 3-5 remain open; Phuc still needs to review the two new response fields
-and missing-author null behavior. Preserve the original questions for context:
+Question 3's request packaging is now addressed by the reported option A/two-
+request MVP agreement; unresolved recovery and cleanup details remain. Questions
+4-5 and final review of the response fields/missing-author null behavior remain
+open. Preserve the original questions for context:
 
 1. Can we confirm these field names/types/wrappers, 1-4 ordered stems, stemId as
    mixer key, and the proposed zero-start/max-duration mixer rules; is anything
@@ -218,7 +245,9 @@ Requirement basis: **WEB APPLICATION PROJECT.docx**, section 3 Module 3 says
 "Cho phép upload đồng thời nhiều file audio"; section 6 Nguyen assignment says
 "API upload nhiều file stems cùng lúc". This requires multi-stem capability but
 does **not explicitly specify one HTTP request**. Whether several single-file
-requests satisfy it needs agreement. Section 3 Module 1 describes Creator/Listener,
+requests satisfy it was a group decision; Phuc's supplied reply now selects that
+MVP packaging. This does not claim instructor approval or implementation acceptance.
+Section 3 Module 1 describes Creator/Listener,
 while section 4 explicitly says user/admin and every user can upload/listen.
 Module 4 mentions Like and My Collection together but does not equate them or
 define an independent collection. Pagination and API details above are current
