@@ -200,8 +200,22 @@ Create pull requests into `dev`. Promote verified versions from
 ## Backend CI
 
 [Backend CI](.github/workflows/backend-ci.yml) runs on pull requests targeting
-`dev` or `main`, using Node.js 24 on Ubuntu 24.04 and `npm ci` with the committed
-lockfile. It is independent of the frontend and does not deploy the application.
+`dev` or `main`, and on pushes to `main`, using Node.js 24 on Ubuntu 24.04 and
+`npm ci` with the committed lockfile. PR checks cover the merge candidate; the
+push check covers the actual commit on the release branch. The `push` trigger
+matches only `main`; PR updates still run through the `pull_request` trigger.
+Concurrency is scoped by PR number or branch ref, so a newer run cancels an
+older run for the same PR/branch without cancelling a different PR's run.
+It is independent of the frontend and does not deploy the application.
+
+For Render's linked `main` branch, keep the current Auto-Deploy setting while
+this change exists only on `dev`. After releasing it to `main`, verify that
+GitHub Actions ran on **push** and passed for that exact main commit. Nguyen
+can then select **After CI Checks Pass** in Render. Render does not auto-deploy
+when it detects no checks or a failed check; a successful PR run alone does
+not establish a check on the final main commit. The first live push run and the
+Render setting change require separate verification; local workflow validation
+does not certify them.
 
 Run the same automated suites locally with Node.js 24:
 
