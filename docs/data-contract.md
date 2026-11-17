@@ -1,7 +1,8 @@
 # Track and Stem Data Contract
 
 **Status: Draft - awaiting Phuc's review of the updated response fields.**
-Updated October 18, 2026. This is not a fully approved contract.
+Response review dated October 18, 2026; Upload handoff reviewed November 12, 2026.
+This is not a fully approved contract.
 The sample [data-contract.json](data-contract.json) is a Track **response** object,
 not a create/PATCH payload. URLs are illustrative and cannot play audio.
 
@@ -51,8 +52,9 @@ author label/avatar. A database lookup error is an error response, not artist=nu
 
 ## Responses and input allowlists
 
-Local backend follow-up (November 3; not Render verified): POST Track additionally
-accepts optional account-scoped Idempotency-Key with immutable original 201 replay
+Historical local backend follow-up (November 3; no Render check in that run):
+POST Track additionally accepts optional account-scoped Idempotency-Key with
+immutable original 201 replay
 for 24 hours, payload-mismatch 409 and unresolved 409/503 retry handling. There are
 no new Track/Stem input or response fields. After expiry, reusing the key may create
 a new Track; replay after DELETE is the original receipt, not recreation.
@@ -102,9 +104,20 @@ file in audio, MP3/WAV/FLAC up to 20 MiB, 10 attempts/account/15 minutes. It ret
 201 `{data:{audioUrl,duration,fileSize,publicId}}`; it does not create a Track.
 Frontend can compose 1-4 StemInput objects from uploads plus chosen names/order.
 Select name/audioUrl/duration/fileSize explicitly; publicId is not a Stem field.
-Separate requests versus a new batch endpoint remains a group decision.
-The specification requires simultaneous multi-stem capability without explicitly
-mandating a single HTTP request; no accepted frontend multi-upload flow is claimed.
+Phuc's reply supplied by Nguyen agrees to separate requests (option A), with at
+most two uploads in flight, followed by one Track. The specification requires
+simultaneous multi-stem capability without explicitly mandating one HTTP request.
+This is a limited MVP design agreement; it does not approve the whole contract.
+
+The [frontend Upload handoff](UPLOAD_FRONTEND_HANDOFF.md) records that agreement,
+Phuc's PR #6 report (short SHA `8bd80b3`) and the remaining code/preview acceptance.
+The owner-scoped frozen intent/key/body recovery rules must be preserved: a broad
+4xx or form-edit handler must not discard an unresolved intent. Optional
+Idempotency-Key protects Track creation only; uploads may leave unreferenced assets
+after failure/cancellation.
+No general release/cleanup API or upload ownership ledger is implemented.
+The [November 12 checkpoint](PROJECT_STATUS.md#release-and-integration-checkpoint-november-12-2026)
+separates source/Git/test checks from supplied historical acceptance evidence.
 
 Files must already be aligned. Backend stores metadata and does not align audio.
 The confirmed timeline uses the longest stem; the old draft's shorter-stem-silence
