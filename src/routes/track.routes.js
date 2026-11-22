@@ -3,6 +3,7 @@ const express = require('express');
 const {
   listTracks,
   listMyTracks,
+  listLikedTracks,
   getTrack,
   createTrack,
   updateTrack,
@@ -262,6 +263,77 @@ router.use((req, res, next) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/mine', authenticate, listMyTracks);
+
+/**
+ * @openapi
+ * /api/tracks/liked:
+ *   get:
+ *     tags: [Tracks]
+ *     summary: List the current account's liked and accessible Tracks (My Collection)
+ *     description: >-
+ *       Requires Bearer authentication. This MVP is a Like-derived saved list,
+ *       not independently named collections or the owner's My Tracks list.
+ *       Includes only Tracks liked by the current account that are public or
+ *       owned by that account. Missing/deleted and inaccessible private Tracks
+ *       are excluded before pagination and total; no hidden Track or Like
+ *       metadata is returned. Visibility changes do not delete Like membership.
+ *       Order is Like createdAt DESC, then Like _id DESC (most recently liked first).
+ *       Only page and limit are supported; client owner/scope/filter/sort fields
+ *       and repeated or nested parameters return 400. One aggregation facet
+ *       derives data and total from the same accessible liked-Track input.
+ *       Returns the existing Track response with public artist fields and
+ *       current-account likedByMe. Like state may change concurrently; refresh
+ *       after mutations. Empty total means totalPages=0; beyond-last data is empty
+ *       while total remains unchanged. Cache-Control is no-store.
+ *       The overall Track/Stem contract remains Draft.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         description: Positive integer; the pagination offset must remain a safe integer.
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 9007199254740991
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 12
+ *     responses:
+ *       '200':
+ *         description: Accessible liked Tracks and access-scoped pagination.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TrackListResponse'
+ *       '400':
+ *         description: Invalid, repeated, nested/operator, unsupported query or unsafe offset.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       '401':
+ *         description: Missing, malformed, expired or invalid token, or missing account.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       '500':
+ *         description: Authentication, database or response-enrichment failure.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get('/liked', authenticate, listLikedTracks);
+
 
 /**
  * @openapi
