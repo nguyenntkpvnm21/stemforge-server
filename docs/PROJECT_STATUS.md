@@ -1,6 +1,77 @@
 # StemForge project status
 
-Last updated: November 22, 2026 (Asia/Saigon).
+Last updated: November 23, 2026 (Asia/Saigon).
+
+## Download provider/browser follow-up (November 23, 2026; local backend)
+
+Continued the existing feature/stem-download-api worktree at
+`d74231a59cf0a5ae64a7965abc70e10b76d47d3b`; runtime, tests and test scripts are
+unchanged. The historical 752 automated tests and six isolated Mongo groups
+below were retained, not rerun. Staging remains empty; no commit/push/merge,
+service configuration change or deployment occurred. Overall contract is Draft.
+
+Manual real-provider evidence: local HTTP login and private fixture creation,
+then GET /api/tracks/:trackId/stems/:stemId/download returned the correct IDs,
+no-store JSON and a correctly signed 300-second video/upload WAV attachment URL.
+The fixture referenced the existing demo Drums stem after read-only demo API and
+Cloudinary metadata/namespace confirmation. The local backend connected only to
+a guarded disposable MongoDB 8.0.34 WiredTiger replica set on 127.0.0.1. No shared
+DB connection, provider mutation, upload or change to demo/seed/assets occurred.
+
+Cloudinary GET returned 200, audio/wav and attachment filename="file.wav".
+Original CDN, signed-link and actual normal headed Chrome 158.0.8127.36 downloads
+were all 3,528,044 bytes with SHA-256
+`8983909b053da3a457d3c5ed93ff420a1a4fe0a9db02581c147830263eaccaa5`.
+Chrome used default transport, a visible two-step link and no API Bearer header
+to Cloudinary; no popup/download blocking or page errors occurred. The exact
+first URL returned **401** when retried five seconds after real five-minute
+expiry. Runtime TTL was never shortened. The final browser's separately issued
+link was not separately held for another expiry cycle. Render Download and
+application frontend integration remain **not accepted** in this follow-up.
+
+The initial external HTML harness omitted its fixture route (/undefined, 404),
+causing a browser timeout; a diagnostic attempt confirmed it. Only that external
+harness was fixed. The corrected browser run passed five focused groups; the
+initial run independently passed its exact-link expiry check. Raw failed attempts
+remain failed, not reclassified into automated successes. All three runs cleaned
+browser, HTTP, DB connections, mongod and validated owned data/download folders.
+Sanitized reports/harnesses stay outside Git; no live signed URL or secret is
+included in the review artifacts. See [Download handoff](DOWNLOAD_FRONTEND_HANDOFF.md).
+
+## Original stem download backend (November 22, 2026; local only)
+
+Branch `feature/stem-download-api` from fetched `origin/dev`
+`d74231a59cf0a5ae64a7965abc70e10b76d47d3b` (My Collection PR #59 merged).
+Original checkouts/handoffs are preserved. No commit, push, merge, deployment,
+shared DB/index/Cloudinary operation or new production fixture in this work.
+Older checkpoints below retain their historical evidence and scope.
+
+Implemented Nguyen's Download MVP: authenticated
+`GET /api/tracks/:trackId/stems/:stemId/download`, visible public/self-owned
+private Track AND isDownloadable=true, with no owner flag bypass. An access-scoped
+read precedes metadata inspection. Returns a no-store JSON descriptor with IDs,
+five-minute signed original Cloudinary attachment URL and ISO expiry. Express
+does not proxy/fetch audio. Only exact current-uploader URLs from the configured
+cloud/namespace are signed; other stored URLs return 422. Missing/inaccessible
+resources are hidden with 404, disabled visible Track 403 and bad IDs/queries 400.
+No upload/playback/schema/index/dependency/startup change, ZIP or mix export.
+The overall Track/Stem contract remains Draft.
+
+Verification actually run on Windows/Node 24: full npm test passed **752 tests**,
+including **56 new Download tests once** (real loopback routes/auth/JWT and local
+SDK signing; DB mocked). Track/upload/Like and all existing suites passed.
+Separately, **six real-Mongo HTTP groups** passed with isolated MongoDB 8.0.34
+WiredTiger, single-node replica set, mongodb-memory-server 11.3.0; real login,
+visibility query, metadata-only PATCH and DELETE transaction behavior were used.
+Probe teardown confirmed HTTP/Mongoose/mongod closed and the validated temporary
+data directory removed. Its nonsecret result report stays outside Git in Temp.
+No binary, node_modules, report, credentials or fixture data belongs in the diff.
+
+Cloudinary byte delivery/Content-Disposition/provider expiry, browser integration
+and Render are **not verified** by these isolated tests. Already issued links
+remain usable until expiry; existing public CDN playback bytes are not protected
+by this gate. Legacy/external audio and asset ownership/revocation are separate
+scope. See [Download frontend handoff, commands and release limits](DOWNLOAD_FRONTEND_HANDOFF.md).
 
 ## My Collection backend feature (November 22, 2026; local only)
 
