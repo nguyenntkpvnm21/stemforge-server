@@ -129,10 +129,14 @@ quoted feedback. Backend supports FLAC beyond the document's MP3/WAV formats.
 - My Collection: Like-derived list versus independent saved collection.
 - Stem management: metadata-only MVP versus whole-array replacement versus
   individual add/remove/replace/reorder, including stable-ID semantics.
-- Download: application action gating with public CDN URLs versus controlled/
-  expiring delivery. isDownloadable currently stores an owner-controlled flag;
-  it does not prevent saving public playback bytes. No authorized download API
-  exists. isPublic protects Track API access, not known public audio URLs.
+- Download MVP backend is now implemented locally (not deployed): authenticated
+  `GET /api/tracks/:trackId/stems/:stemId/download` checks Track visibility and
+  isDownloadable=true, then returns a five-minute original attachment link.
+  See [handoff and delivery limits](DOWNLOAD_FRONTEND_HANDOFF.md). Frontend/provider
+  acceptance, protected playback and asset revocation remain separate work.
+  isPublic protects Track API access, not known public audio URLs; already issued
+  links remain usable until expiry. This implementation does not approve the
+  overall Draft contract.
 - Multi-upload request design, partial failure/retry handling, and orphan asset
   cleanup. Deleting Track currently does not delete Cloudinary audio.
 - Missing-author null behavior above awaits frontend acceptance.

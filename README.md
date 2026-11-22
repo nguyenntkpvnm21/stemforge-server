@@ -22,6 +22,26 @@ Realtime MVP passed scoped REST/Socket.IO checks on Render Live 86aa3cb.
 See the realtime section for verified scope and remaining local-only checks.
 Audio/stem replacement remains pending.
 
+## Original stem download API (local feature; not deployed)
+
+`GET /api/tracks/{trackId}/stems/{stemId}/download` requires Bearer authentication,
+Track visibility (public or own private) and `isDownloadable: true`, including
+for the owner. It returns `{ data: { trackId, stemId, downloadUrl, expiresAt } }`.
+The frontend opens the five-minute signed Cloudinary original attachment link
+separately, without forwarding its API token. No audio is proxied by Render;
+no upload, playback, schema or index change. No ZIP or mix export.
+
+Only original URLs from the current managed Cloudinary upload namespace are
+supported; legacy/external URLs return 422 without fetching them. Unauthorized
+private/missing Tracks return 404, disabled downloads 403 and invalid inputs 400.
+Existing public playback URLs remain accessible; an issued link cannot be
+revoked before expiry. See the [frontend handoff and verification limits](docs/DOWNLOAD_FRONTEND_HANDOFF.md).
+The overall contract remains Draft. Real Cloudinary original-byte delivery and
+normal Chrome downloads through a local backend passed the November 23 smoke;
+Render Download acceptance has not been run. See the handoff for expiry evidence
+and cleanup. Use `npm.cmd run test:downloads` for the focused isolated suite,
+also included once in `test:tracks` / `test:ci`.
+
 ## My Collection API (local feature; not deployed)
 
 `GET /api/tracks/liked?page=1&limit=12` requires Bearer authentication and returns

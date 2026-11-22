@@ -20,6 +20,8 @@ const {
   unlikeTrack,
 } = require('../controllers/track-like.controller');
 
+const { getStemDownload } = require('../controllers/stem-download.controller');
+
 const router = express.Router();
 
 router.use((req, res, next) => {
@@ -147,7 +149,7 @@ router.use((req, res, next) => {
  *           example: true
  *         isDownloadable:
  *           type: boolean
- *           description: Whether the application offers a download action.
+ *           description: Whether authenticated viewers may request original-stem download links.
  *           example: true
  *         stems:
  *           type: array
@@ -1265,5 +1267,89 @@ router.delete('/:trackId', authenticate, deleteTrack);
 router.get('/:trackId/like', authenticate, getTrackLike);
 router.put('/:trackId/like', authenticate, likeTrack);
 router.delete('/:trackId/like', authenticate, unlikeTrack);
+
+/**
+ * @openapi
+ * /api/tracks/{trackId}/stems/{stemId}/download:
+ *   get:
+ *     tags: [Tracks]
+ *     summary: Get a short-lived link to download one original stem
+ *     description: |
+ *       Requires authentication, Track visibility (public or own private) and
+ *       isDownloadable=true, including for the owner. No query parameters.
+ *       Returns JSON, not file bytes or a redirect. Open downloadUrl separately
+ *       without an API Bearer token. The signed Cloudinary attachment link expires
+ *       after five minutes; no transcoding, ZIP or mix export is requested.
+ *       Only original URLs produced by this application's Cloudinary upload
+ *       namespace are supported. Arbitrary/legacy external URLs return 422.
+ *       Cache-Control is no-store. Previously issued links remain usable until
+ *       expiry even after permission changes or DELETE. Public playback URLs
+ *       remain accessible: this is an application gate, not copy protection.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: trackId
+ *         required: true
+ *         schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+ *       - in: path
+ *         name: stemId
+ *         required: true
+ *         schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+ *     responses:
+ *       '200':
+ *         description: Authorized original-stem download descriptor.
+ *         headers:
+ *           Cache-Control:
+ *             schema: { type: string, enum: [no-store] }
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [data]
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   required: [trackId, stemId, downloadUrl, expiresAt]
+ *                   properties:
+ *                     trackId: { type: string }
+ *                     stemId: { type: string }
+ *                     downloadUrl:
+ *                       type: string
+ *                       format: uri
+ *                       description: Sensitive short-lived signed link; do not log or persist.
+ *                     expiresAt: { type: string, format: date-time }
+ *       '400':
+ *         description: Invalid Track/stem ID or unexpected query parameters.
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
+ *       '401':
+ *         description: Missing, invalid, expired token or missing account.
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
+ *       '403':
+ *         description: Downloads disabled for a visible Track, including its owner.
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
+ *       '404':
+ *         description: Track missing/inaccessible, or stem absent from the accessible Track.
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
+ *       '422':
+ *         description: Stored audio URL is not a supported original upload in the configured cloud.
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
+ *       '500':
+ *         description: Internal authentication, database or signing failure (no internal details).
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
+ */
+router.get('/:trackId/stems/:stemId/download', authenticate, getStemDownload);
 
 module.exports = router;
