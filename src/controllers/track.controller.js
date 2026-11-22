@@ -6,6 +6,7 @@ const {
 const mongoose = require('mongoose');
 const TrackLike = require('../models/TrackLike');
 const trackResponseService = require('../services/track-response.service');
+const trackCollectionService = require('../services/track-collection.service');
 const trackEvents = require('../services/track-events.service');
 const idempotency = require('../services/track-create-idempotency.service');
 const { parseTrackListFilters } = require('../validators/track-list-query.validator');
@@ -51,51 +52,56 @@ async function listMyTracks(req, res, next) {
   return sendTrackList(req, res, next, { artistId: req.user._id }, { createdAt: -1, _id: -1 });
 }
 
-async function sendTrackList(req, res, next, filter, sort) {
-  const page = parsePositiveInteger(req.query.page, 1);
-  const limit = parsePositiveInteger(req.query.limit, 12);
-
-  if (page === null) {
-    return res.status(400).json({
-      message: 'page must be a positive integer.',
-    });
+async function listLikedTracks(req, res, next) {
+  if (!req.user?._id) {
+    return res.status(401).json({ message: 'Authentication required.' });
   }
 
-  if (limit === null || limit > 100) {
-    return res.status(400).json({
-      message: 'limit must be an integer between 1 and 100.',
-    });
+  if (!req.query || typeof req.query !== 'object' || Array.isArray(req.query) ||
+    Object.keys(req.query).some(name => !['page', 'limit'].includes(name))) {
+    return res.status(400).json({ message: 'Query contains unsupported My Collection parameters.' });
   }
 
+  const pagination = parseTrackPagination(req.query);
+  if (pagination.error) return res.status(400).json({ message: pagination.error });
+
+  try {
+    const { tracks, total } = await trackCollectionService.listLikedTracks(req.user._id, pagination);
+    return await sendTrackPage(req, res, tracks, total, pagination);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+function parseTrackPagination(query) {
+  const page = parsePositiveInteger(query.page, 1);
+  const limit = parsePositiveInteger(query.limit, 12);
+  if (page === null) return { error: 'page must be a positive integer.' };
+  if (limit === null || limit > 100) return { error: 'limit must be an integer between 1 and 100.' };
   const skip = (page - 1) * limit;
+  if (!Number.isSafeInteger(skip)) return { error: 'The requested page is too large.' };
+  return { page, limit, skip };
+}
 
-  if (!Number.isSafeInteger(skip)) {
-    return res.status(400).json({
-      message: 'The requested page is too large.',
-    });
-  }
+async function sendTrackPage(req, res, tracks, total, { page, limit }) {
+  const data = await trackResponseService.enrichTracks(tracks, req.user?._id);
+  return res.status(200).json({
+    data,
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+  });
+}
+
+async function sendTrackList(req, res, next, filter, sort) {
+  const pagination = parseTrackPagination(req.query);
+  if (pagination.error) return res.status(400).json({ message: pagination.error });
+  const { skip, limit } = pagination;
 
   try {
     const [tracks, total] = await Promise.all([
-      Track.find(filter)
-        .sort(sort)
-        .skip(skip)
-        .limit(limit)
-        .exec(),
+      Track.find(filter).sort(sort).skip(skip).limit(limit).exec(),
       Track.countDocuments(filter).exec(),
     ]);
-
-    const data = await trackResponseService.enrichTracks(tracks, req.user?._id);
-
-    return res.status(200).json({
-      data,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    });
+    return await sendTrackPage(req, res, tracks, total, pagination);
   } catch (error) {
     return next(error);
   }
@@ -327,6 +333,7 @@ async function deleteTrack(req, res, next) {
 module.exports = {
   listTracks,
   listMyTracks,
+  listLikedTracks,
   getTrack,
   createTrack,
   updateTrack,

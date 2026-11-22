@@ -1,6 +1,44 @@
 # StemForge project status
 
-Last updated: November 12, 2026 (Asia/Saigon).
+Last updated: November 22, 2026 (Asia/Saigon).
+
+## My Collection backend feature (November 22, 2026; local only)
+
+Branch `feature/my-collection-api`, based on fetched origin/dev
+`ce5be9cfecc0111e50726a3aff9ca974b4607a9f`. Not committed/pushed/merged/deployed.
+Original worktrees and handoff files are preserved; older checkpoints below keep
+their historical scope and are not new live verification claims.
+
+The original WEB APPLICATION PROJECT.docx section 3 Module 4 names Like and
+"My Collection"; section 4 models userId/trackId Likes without independently named
+collections/folders. Under Nguyen's current implementation request, this MVP is
+therefore the authenticated liked-Track list, not a new collection schema or
+proof of requirements for future multiple named collections. The overall
+Track/Stem and realtime contracts remain Draft.
+
+`GET /api/tracks/liked` accepts only page/limit (defaults 1/12, limit at most 100).
+A user-scoped Like aggregation joins Tracks and checks public or self-owned
+private access before a shared data/count facet. Deleted/missing and inaccessible
+Tracks do not appear in data, pagination total or metadata. Ordering is Like
+createdAt DESC, then Like _id DESC. Static route precedes /:trackId. Existing
+response context/artist allowlist and Cache-Control: no-store are retained;
+public list/My Tracks visibility, ordering and Like mutation responses remain
+unchanged. No Track/Like schema, runtime dependency, startup or index change.
+
+Actual verification: 37 focused collection HTTP/mock tests passed. Full npm test
+passed 696 tests, including those 37 once; Track/upload/Like regressions are part
+of that run. Seven separate real-Mongo loopback HTTP groups passed on disposable
+MongoDB 8.0.34 WiredTiger with mongodb-memory-server 11.3.0 and actual Auth/Like/
+PATCH/DELETE code. A final probe-only rerun after cleanup hardening again passed
+those same seven groups, not seven more automated tests. Teardown confirmed
+HTTP/Mongoose/mongod closed and the validated data directory removed. Reports
+and binaries are outside the checkout. No shared DB/index, protected data,
+Cloudinary operation, Render check or new production fixture occurred.
+
+See [frontend handoff, limitations and reproducible commands](MY_COLLECTION_FRONTEND_HANDOFF.md).
+Frontend collection UI, Render deployment verification and possible user-leading
+Like index assessment remain future work. npm ci reported nine advisories
+(six moderate, three high); no audit remediation was attempted in this scope.
 
 ## Release and integration checkpoint (November 12, 2026)
 
