@@ -22,6 +22,27 @@ Realtime MVP passed scoped REST/Socket.IO checks on Render Live 86aa3cb.
 See the realtime section for verified scope and remaining local-only checks.
 Audio/stem replacement remains pending.
 
+## My Collection API (local feature; not deployed)
+
+`GET /api/tracks/liked?page=1&limit=12` requires Bearer authentication and returns
+`{ data: Track[], pagination: { page, limit, total, totalPages } }`. This is the
+current account's Like-derived saved list, separate from `/api/tracks/mine`.
+It is not independently named collections. Only public or self-owned private
+Tracks are included; deleted/missing and foreign-private Tracks are excluded
+before both pagination and total. Order is most recent Like first, with Like ID
+as descending tie-breaker. Only page/limit are accepted (limit 1-100).
+
+Track response context is unchanged: public artist allowlist (or null) and
+current-user `likedByMe`. Existing Like/Unlike endpoints change membership.
+No new model, shared index, environment setting or Cloudinary operation is added.
+The overall contract remains Draft. See the [frontend handoff and evidence
+boundaries](docs/MY_COLLECTION_FRONTEND_HANDOFF.md) before integration.
+
+Run `npm.cmd run test:collection` for the focused loopback/mock suite. It is also
+included exactly once by `test:tracks` / `test:ci`; the standalone run is not
+added again to the full automated count. The optional real-Mongo probe is manual,
+uses a new loopback-only replica set, and is not part of CI.
+
 ## Upload frontend handoff (MVP choice agreed; acceptance pending)
 
 See the [source-reviewed Upload handoff](docs/UPLOAD_FRONTEND_HANDOFF.md) for
