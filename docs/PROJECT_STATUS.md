@@ -2,6 +2,37 @@
 
 Last updated: November 24, 2026 (Asia/Saigon).
 
+## Mongoose security patch (November 24, 2026; local only)
+
+Branch `fix/mongoose-security`, based on fetched origin/dev
+`64face461cd83fb66938ae6c18ed200fd9a99e6c` after body-parser PR #63 merged.
+Only lockfile resolution changes at runtime: Mongoose 9.11.1 -> 9.11.4,
+required kareem 3.4.0 -> 3.4.1 and mquery 6.0.0 -> 6.0.1. package.json,
+MongoDB driver 7.7.0, Multer 2.4.0 and the merged parser patch are unchanged;
+no source/schema/index/API/sanitizeFilter or service change. Contract is Draft.
+
+After clean npm ci, **761 automated tests passed once**, zero failures,
+cancellations or skips on Windows / Node 24.15.0. Separate real MongoDB 8.0.34
+WiredTiger single-node replica-set probes passed: **17 transaction/CRUD groups**,
+**7 Collection groups** (including Track.hydrate(), pagination and access), and
+**6 Download groups** without provider delivery. These groups are not added to
+the automated-test total. Two application processes verified concurrency;
+rollback, commit uncertainty, expiry/TTL race and PATCH/DELETE replay passed.
+No multi-node failover, benchmark, GitHub/Ubuntu or Render acceptance was run.
+
+Audit: **7 -> 6 flagged package nodes**, **2 -> 1 high**, moderate remains 5.
+All four Mongoose advisories disappeared. Multer remains a conditional high
+exception because the current fileFilter is synchronous; it must be reassessed
+before async filter changes. Other audit findings are retained, not fixed here.
+Successful probe sessions/HTTP/processes/connections and owned data were cleaned.
+An initial native-exit attempt had no result; its exact residual local data was
+separately removed after verifying no owned process remained.
+
+Not staged, committed, pushed, merged or deployed. Existing checkouts and the
+five quality-evaluation handoff files remain unchanged. Historical b3c72c5
+quality and previous security figures remain attached to their original source.
+See [dependency diff, evidence, limitations and release smoke](MONGOOSE_SECURITY.md).
+
 ## body-parser security patch (November 24, 2026; local only)
 
 Branch `fix/body-parser-security`, based on fetched origin/dev
