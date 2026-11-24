@@ -1,6 +1,35 @@
 # StemForge project status
 
-Last updated: November 23, 2026 (Asia/Saigon).
+Last updated: November 24, 2026 (Asia/Saigon).
+
+## body-parser security patch (November 24, 2026; local only)
+
+Branch `fix/body-parser-security`, based on fetched origin/dev
+`2d2c68eb97364acdb7c8df469950f08245a2408d`. Not staged, committed, pushed,
+merged or deployed. The separate quality-evaluation worktree's five files and
+its b3c72c5 evidence remain unchanged; no old test/performance/audit figure was
+rewritten as a result for this patch. The overall contract remains Draft.
+
+Target: GHSA-27r3-jxmh-p828. npm updated the existing Express dependency resolution
+from body-parser 2.3.0 to 2.4.0 within Express 5.2.1's ^2.2.1 range. Its required
+qs update resolved 6.16.0 to 6.17.1. Exactly those two package versions changed;
+no new direct dependency, overrides, parent/major upgrade or src change.
+A clean npm ci and full installed-tree inspection found one patched parser copy,
+with no affected nested version. Test scripts add nine focused parser cases once.
+
+Actual final Windows/Node 24 run: **761 automated tests passed**, zero failures,
+once on the patched lockfile/tests (the focused 9 and existing Auth 77 are not
+added again). gzip/deflate/Brotli, corrupt/invalid/expanded JSON and isolated
+trailing-byte/charset process survival passed. A minimal old-parser control
+exited 1 with an unhandled zlib error; earlier app-startup timeouts are separately
+recorded as inconclusive. Test children/HTTP/agents/timers were cleaned. No shared
+DB/Cloudinary or Production request, benchmark, ZAP, config or index change.
+
+Audit: **9 -> 7** flagged package nodes, **3 -> 2 high**, **6 -> 5 moderate**.
+body-parser GHSA-27r3-jxmh-p828 and consequential qs GHSA-6pq8-jhm2-2vcw are gone;
+Mongoose, Multer, fast-uri, ip-address, minimatch, glob and swagger-jsdoc remain.
+GitHub/Ubuntu and deployment are pending. See [security checkpoint, remaining
+advisories and read-only deployment smoke](BODY_PARSER_SECURITY.md).
 
 ## Download provider/browser follow-up (November 23, 2026; local backend)
 
